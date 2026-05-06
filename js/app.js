@@ -3,7 +3,19 @@ let deferredPrompt = null;
 
 const el = (id) => document.getElementById(id);
 
-function setStatus(msg){ el("status").textContent = msg; }
+function setStatus(msg){
+  const statusEl = el("status");
+  if(statusEl) statusEl.textContent = msg;
+}
+
+function bind(id, event, handler){
+  const node = el(id);
+  if(!node){
+    console.warn(`Elemento no encontrado: #${id}`);
+    return;
+  }
+  node.addEventListener(event, handler);
+}
 
 function togglePanel(id){
   const panel = el(id);
@@ -36,37 +48,37 @@ function init(){
   });
 
   el("movFecha").value = today();
-  el("movTipo").addEventListener("change", toggleTipoMovimiento);
-  el("formMovimiento").addEventListener("submit", guardarMovimiento);
-  el("btnLimpiarForm").addEventListener("click", limpiarForm);
-  el("buscarMovimiento").addEventListener("input", renderMovimientos);
+  bind("movTipo", "change", toggleTipoMovimiento);
+  bind("formMovimiento", "submit", guardarMovimiento);
+  bind("btnLimpiarForm", "click", limpiarForm);
+  bind("buscarMovimiento", "input", renderMovimientos);
 
-  el("movCantidad").addEventListener("input", recalcularTotalOperacion);
-  el("movPrecio").addEventListener("input", recalcularTotalOperacion);
-  el("movGastos").addEventListener("input", recalcularTotalOperacion);
-  el("movTotal").addEventListener("change", calcularGastosDesdeTotal);
+  bind("movCantidad", "input", recalcularTotalOperacion);
+  bind("movPrecio", "input", recalcularTotalOperacion);
+  bind("movGastos", "input", recalcularTotalOperacion);
+  bind("movTotal", "change", calcularGastosDesdeTotal);
 
-  el("formAjustes").addEventListener("submit", guardarAjustes);
-  el("btnExportar").addEventListener("click", exportarDatos);
-  el("inputImportar").addEventListener("change", importarDatos);
-  el("btnBorrarTodo").addEventListener("click", borrarTodo);
-  el("btnActualizarTodasApi").addEventListener("click", actualizarTodasApi);
-  el("btnRefrescarCotizaciones").addEventListener("click", renderCotizaciones);
+  bind("formAjustes", "submit", guardarAjustes);
+  bind("btnExportar", "click", exportarDatos);
+  bind("inputImportar", "change", importarDatos);
+  bind("btnBorrarTodo", "click", borrarTodo);
+  bind("btnActualizarTodasApi", "click", actualizarTodasApi);
+  bind("btnRefrescarCotizaciones", "click", renderCotizaciones);
 
-  el("btnGenerarJsonIA").addEventListener("click", generarJsonParaIA);
-  el("btnCopiarJsonIA").addEventListener("click", copiarJsonIA);
-  el("btnDescargarJsonIA").addEventListener("click", descargarJsonIA);
-  el("btnCopiarPromptIA").addEventListener("click", copiarPromptIA);
-  el("btnCargarRespuestaIA").addEventListener("click", cargarRespuestaIA);
-  el("btnEjemploRespuestaIA").addEventListener("click", pegarEjemploRespuestaIA);
-  el("btnBorrarRecomendacionesIA").addEventListener("click", borrarRecomendacionesIA);
+  bind("btnGenerarJsonIA", "click", generarJsonParaIA);
+  bind("btnCopiarJsonIA", "click", copiarJsonIA);
+  bind("btnDescargarJsonIA", "click", descargarJsonIA);
+  bind("btnCopiarPromptIA", "click", copiarPromptIA);
+  bind("btnCargarRespuestaIA", "click", cargarRespuestaIA);
+  bind("btnEjemploRespuestaIA", "click", pegarEjemploRespuestaIA);
+  bind("btnBorrarRecomendacionesIA", "click", borrarRecomendacionesIA);
 
   window.addEventListener("beforeinstallprompt", (e)=>{
     e.preventDefault();
     deferredPrompt = e;
     el("btnInstall").classList.remove("hidden");
   });
-  el("btnInstall").addEventListener("click", async ()=>{
+  bind("btnInstall", "click", async ()=>{
     if(deferredPrompt){
       deferredPrompt.prompt();
       deferredPrompt = null;
@@ -1026,3 +1038,10 @@ function borrarTodo(){
 
 
 window.addEventListener("DOMContentLoaded", init);
+
+
+window.togglePanel = togglePanel;
+window.editarMovimiento = editarMovimiento;
+window.borrarMovimiento = borrarMovimiento;
+window.mostrarDetalleCartera = mostrarDetalleCartera;
+window.actualizarUnaApi = actualizarUnaApi;
