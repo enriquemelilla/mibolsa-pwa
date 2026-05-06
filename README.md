@@ -1,2 +1,69 @@
-# mibolsa-pwa
-mibolsa-pwa
+# MiBolsa PWA V5 completa
+
+Aplicación PWA para gestionar una cartera personal de acciones.
+
+## Funciones incluidas
+
+- Alta, modificación y baja de movimientos.
+- Tipos de movimiento:
+  - COMPRA
+  - VENTA
+  - SEGUIMIENTO / solo cotización
+- Cartera real agrupada por acción.
+- Compras suman y ventas restan.
+- Sección separada para valores en seguimiento.
+- Cotizaciones manuales.
+- Cotizaciones por API:
+  - Finnhub
+  - Twelve Data
+  - Alpha Vantage
+- Comparativa con beneficio bruto y neto estimado.
+- Ajustes de gastos de venta:
+  - porcentaje
+  - mínimo por operación
+- Exportar e importar copia JSON.
+- Datos demo.
+- PWA instalable en móvil o PC.
+- Funciona sin servidor si se abre con Live Server o servidor local.
+
+## Uso recomendado
+
+Para evitar restricciones del navegador, abre el proyecto con un servidor local.
+
+Ejemplo con Python:
+
+```bash
+cd mibolsa_pwa_v5_completa
+python -m http.server 8080
+```
+
+Luego abre:
+
+```text
+http://localhost:8080
+```
+
+## Símbolos API ejemplo
+
+- BBVA: BBVA.MC
+- Santander: SAN.MC
+- Mapfre: MAP.MC
+- Iberdrola: IBE.MC
+
+## Nota
+
+La aplicación guarda los datos en localStorage del navegador.
+Usa Exportar JSON para hacer copias de seguridad.
+
+
+## Adaptación móvil / PC añadida
+
+Esta versión está adaptada para ambos formatos:
+
+- En PC se muestran tablas completas.
+- En móvil las tablas se convierten automáticamente en tarjetas.
+- El menú pasa a la parte inferior para uso táctil.
+- Formularios a una columna en pantallas pequeñas.
+- Botones con tamaño táctil.
+- Inputs con tamaño de letra adecuado para evitar zoom automático.
+- Compatible con instalación PWA en móvil y escritorio.

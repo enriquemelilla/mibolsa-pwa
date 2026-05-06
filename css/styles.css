@@ -1,0 +1,443 @@
+:root{
+  --bg:#0f172a;
+  --panel:#111827;
+  --card:#1e293b;
+  --line:#334155;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --primary:#38bdf8;
+  --primary-2:#0ea5e9;
+  --good:#22c55e;
+  --bad:#ef4444;
+  --warn:#f59e0b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial, Helvetica, sans-serif;
+  background:linear-gradient(135deg,#0f172a,#111827);
+  color:var(--text);
+}
+.app-shell{min-height:100vh;display:flex;flex-direction:column}
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:center;
+  padding:18px 20px;
+  background:rgba(15,23,42,.92);
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+.topbar h1{margin:0;font-size:26px}
+.topbar p{margin:4px 0 0;color:var(--muted)}
+.topbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tabs{
+  display:flex;
+  gap:8px;
+  padding:10px;
+  overflow:auto;
+  background:#111827;
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:76px;
+  z-index:9;
+}
+.tab,.btn,.file-btn{
+  border:0;
+  border-radius:10px;
+  padding:10px 13px;
+  background:#334155;
+  color:white;
+  cursor:pointer;
+  font-weight:600;
+  white-space:nowrap;
+}
+.tab.active{background:var(--primary-2)}
+.btn.primary{background:var(--primary-2)}
+.btn.secondary{background:#475569}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.danger{background:#b91c1c}
+.file-btn{
+  display:inline-block;
+  text-align:center;
+  background:#475569;
+}
+.file-btn input{display:none}
+main{padding:18px;flex:1}
+.view{display:none}
+.view.active{display:block}
+.card{
+  background:rgba(30,41,59,.96);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:18px;
+  box-shadow:0 12px 35px rgba(0,0,0,.25);
+}
+.card h2{margin-top:0}
+.card-header{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  margin-bottom:12px;
+}
+.grid{display:grid;gap:14px}
+.grid.two{grid-template-columns:1fr 1fr}
+.cards-4{grid-template-columns:repeat(4,1fr)}
+.layout-2{display:grid;grid-template-columns:minmax(320px,430px) 1fr;gap:18px}
+.stat span{display:block;color:var(--muted);font-size:14px}
+.stat strong{display:block;font-size:24px;margin-top:8px}
+label{display:block;margin-top:10px;margin-bottom:5px;color:#cbd5e1;font-weight:600}
+input,select,textarea{
+  width:100%;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#0f172a;
+  color:white;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.actions.vertical{flex-direction:column}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+th{color:#cbd5e1;background:#162033;position:sticky;top:0}
+tr:hover td{background:rgba(15,23,42,.55)}
+.muted,.hint{color:var(--muted)}
+.hint{font-size:13px}
+.bad{color:var(--bad);font-weight:700}
+.good{color:var(--good);font-weight:700}
+.warn{color:var(--warn);font-weight:700}
+.hidden{display:none!important}
+.details-panel{
+  margin-top:16px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:14px;
+  background:#0f172a;
+}
+.small-btn{
+  padding:6px 8px;
+  border-radius:8px;
+  border:0;
+  color:white;
+  cursor:pointer;
+  margin:2px;
+}
+.edit{background:#0ea5e9}
+.delete{background:#dc2626}
+.detail{background:#64748b}
+.placeholder{
+  border:1px dashed var(--line);
+  padding:16px;
+  border-radius:12px;
+  background:#0f172a;
+}
+footer{
+  padding:10px 18px;
+  background:#111827;
+  color:var(--muted);
+  border-top:1px solid var(--line);
+}
+.search{max-width:300px}
+@media(max-width:900px){
+  .layout-2,.cards-4,.grid.two{grid-template-columns:1fr}
+  .topbar{align-items:flex-start;flex-direction:column}
+  .tabs{top:130px}
+  main{padding:12px}
+  th,td{font-size:13px;padding:8px}
+}
+
+
+/* =========================================================
+   ADAPTACIÓN RESPONSIVE COMPLETA MÓVIL / PC
+   ========================================================= */
+
+html{
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  min-width:320px;
+}
+
+button,
+input,
+select,
+textarea{
+  font-size:16px; /* evita zoom automático en iPhone/Android */
+}
+
+button,
+.tab,
+.btn,
+.file-btn,
+.small-btn{
+  min-height:44px; /* tamaño táctil recomendado */
+}
+
+.table-wrap{
+  width:100%;
+}
+
+/* PC y tablet grande: mantiene tablas clásicas */
+@media (min-width: 901px){
+  .mobile-only{display:none!important}
+}
+
+/* Tablet y móvil */
+@media (max-width: 900px){
+  .topbar{
+    position:static;
+    padding:14px;
+  }
+
+  .topbar h1{
+    font-size:22px;
+  }
+
+  .topbar p{
+    font-size:13px;
+  }
+
+  .topbar-actions{
+    width:100%;
+  }
+
+  .topbar-actions .btn{
+    flex:1;
+  }
+
+  .tabs{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    top:auto;
+    z-index:50;
+    display:flex;
+    gap:4px;
+    padding:8px;
+    background:rgba(15,23,42,.98);
+    border-top:1px solid var(--line);
+    border-bottom:0;
+    overflow-x:auto;
+    box-shadow:0 -8px 24px rgba(0,0,0,.35);
+  }
+
+  .tab{
+    flex:0 0 auto;
+    min-width:92px;
+    padding:9px 8px;
+    border-radius:12px;
+    font-size:12px;
+    white-space:normal;
+    line-height:1.15;
+  }
+
+  main{
+    padding:12px 10px 90px;
+  }
+
+  .card{
+    padding:14px;
+    border-radius:16px;
+  }
+
+  .card-header{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .search{
+    max-width:none;
+  }
+
+  .grid.two,
+  .layout-2,
+  .cards-4{
+    grid-template-columns:1fr!important;
+  }
+
+  .stat strong{
+    font-size:22px;
+  }
+
+  .actions{
+    flex-direction:column;
+  }
+
+  .actions .btn,
+  .actions .file-btn{
+    width:100%;
+  }
+
+  .small-btn{
+    width:100%;
+    margin:3px 0;
+  }
+
+  .details-panel{
+    padding:10px;
+  }
+}
+
+/* Móvil: las tablas se convierten en tarjetas legibles */
+@media (max-width: 700px){
+  .responsive-table{
+    border-collapse:separate;
+    border-spacing:0 12px;
+  }
+
+  .responsive-table thead{
+    display:none;
+  }
+
+  .responsive-table,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table td{
+    display:block;
+    width:100%;
+  }
+
+  .responsive-table tr{
+    background:#0f172a;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    box-shadow:0 8px 20px rgba(0,0,0,.18);
+  }
+
+  .responsive-table tr:hover td{
+    background:transparent;
+  }
+
+  .responsive-table td{
+    border-bottom:1px solid rgba(51,65,85,.65);
+    padding:9px 4px;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+    text-align:right;
+  }
+
+  .responsive-table td:last-child{
+    border-bottom:0;
+  }
+
+  .responsive-table td::before{
+    content:attr(data-label);
+    color:var(--muted);
+    font-weight:700;
+    text-align:left;
+    min-width:110px;
+    flex:0 0 42%;
+  }
+
+  .responsive-table td > *{
+    max-width:58%;
+  }
+
+  .responsive-table td input{
+    width:100%;
+    min-width:120px;
+  }
+
+  .responsive-table td[data-label="Acciones"],
+  .responsive-table td[data-label="Acción"],
+  .responsive-table td[data-label="Acciones netas"],
+  .responsive-table td[data-label="Tipo"]{
+    text-align:right;
+  }
+
+  .responsive-table td[data-label="Acciones"]{
+    display:block;
+  }
+
+  .responsive-table td[data-label="Acciones"]::before{
+    display:block;
+    margin-bottom:8px;
+  }
+
+  .responsive-table td[data-label="Acciones"] > *{
+    max-width:100%;
+  }
+
+  h2{
+    font-size:20px;
+  }
+
+  .muted,
+  .hint{
+    font-size:13px;
+  }
+}
+
+/* Móvil pequeño */
+@media (max-width: 430px){
+  .topbar h1{
+    font-size:20px;
+  }
+
+  .card{
+    padding:12px;
+  }
+
+  .tab{
+    min-width:82px;
+    font-size:11px;
+  }
+
+  .responsive-table td{
+    flex-direction:column;
+    text-align:left;
+    gap:4px;
+  }
+
+  .responsive-table td::before{
+    min-width:auto;
+    flex:auto;
+  }
+
+  .responsive-table td > *{
+    max-width:100%;
+  }
+
+  .stat strong{
+    font-size:20px;
+  }
+}
+
+/* Mejor impresión desde PC */
+@media print{
+  .tabs,
+  .topbar-actions,
+  footer,
+  .actions,
+  .small-btn{
+    display:none!important;
+  }
+
+  body{
+    background:white;
+    color:black;
+  }
+
+  .card{
+    box-shadow:none;
+    border:1px solid #ccc;
+    background:white;
+    color:black;
+  }
+
+  main{
+    padding:0;
+  }
+}
