@@ -53,6 +53,14 @@ function init(){
   el("btnActualizarTodasApi").addEventListener("click", actualizarTodasApi);
   el("btnRefrescarCotizaciones").addEventListener("click", renderCotizaciones);
 
+  el("btnGenerarJsonIA").addEventListener("click", generarJsonParaIA);
+  el("btnCopiarJsonIA").addEventListener("click", copiarJsonIA);
+  el("btnDescargarJsonIA").addEventListener("click", descargarJsonIA);
+  el("btnCopiarPromptIA").addEventListener("click", copiarPromptIA);
+  el("btnCargarRespuestaIA").addEventListener("click", cargarRespuestaIA);
+  el("btnEjemploRespuestaIA").addEventListener("click", pegarEjemploRespuestaIA);
+  el("btnBorrarRecomendacionesIA").addEventListener("click", borrarRecomendacionesIA);
+
   window.addEventListener("beforeinstallprompt", (e)=>{
     e.preventDefault();
     deferredPrompt = e;
@@ -288,6 +296,7 @@ function renderAll(){
   renderSeguimiento();
   renderCotizaciones();
   renderComparativa();
+  renderRecomendacionesIA();
   cargarAjustesForm();
   marcarTablasResponsive();
 }
@@ -596,6 +605,368 @@ function renderComparativa(){
   }
 }
 
+
+function generarDatosParaIA(){
+  const cartera = agruparCartera().map(g=>{
+    const cot = getCotizacion(g.ticker);
+    const valorActual = cot ? cot.price * g.cantidadNeta : 0;
+    const beneficioBruto = cot ? valorActual - g.invertidoNeto : null;
+    const rentabilidadBrutaPct = cot && g.invertidoNeto ? (beneficioBruto / g.invertidoNeto) * 100 : null;
+
+    return {
+      nombre: g.nombre,
+      ticker: g.ticker,
+      simbolo_api: g.apiSymbol || "",
+      exchange: g.exchange || "",
+      acciones_netas: g.cantidadNeta,
+      acciones_compradas: g.cantidadComprada,
+      acciones_vendidas: g.cantidadVendida,
+      invertido_neto: Number(g.invertidoNeto.toFixed(4)),
+      precio_medio: Number(g.precioMedio.toFixed(6)),
+      ultima_cotizacion: cot ? cot.price : null,
+      fecha_cotizacion: cot ? cot.updatedAt : null,
+      valor_actual: cot ? Number(valorActual.toFixed(4)) : null,
+      beneficio_bruto: cot ? Number(beneficioBruto.toFixed(4)) : null,
+      rentabilidad_bruta_pct: rentabilidadBrutaPct !== null ? Number(rentabilidadBrutaPct.toFixed(4)) : null,
+      movimientos: g.movimientos.map(m=>({
+        fecha: m.fecha,
+        tipo: m.tipo,
+        cantidad: m.cantidad,
+        precio: m.precio,
+        gastos: m.gastos,
+        total: m.total,
+        notas: m.notas || ""
+      }))
+    };
+  });
+
+  const seguimiento = getSeguimiento().map(s=>{
+    const cot = getCotizacion(s.ticker);
+    return {
+      nombre: s.nombre,
+      ticker: s.ticker,
+      simbolo_api: s.apiSymbol || "",
+      exchange: s.exchange || "",
+      ultima_cotizacion: cot ? cot.price : null,
+      fecha_cotizacion: cot ? cot.updatedAt : null,
+      notas: s.notas || ""
+    };
+  });
+
+  return {
+    tipo: "mibolsa_cartera_para_chatgpt",
+    version: "1.0",
+    fecha_exportacion: new Date().toISOString(),
+    moneda: db.ajustes.moneda || "EUR",
+    ajustes: {
+      gastos_venta_pct: db.ajustes.ventaPct,
+      gastos_venta_minimo: db.ajustes.ventaMin,
+      impuesto_plusvalia_pct: db.ajustes.impuestoPct
+    },
+    prompt_usuario: db.ajustes.promptIA || "",
+    cartera,
+    seguimiento,
+    instrucciones_respuesta: {
+      formato: "JSON estricto sin markdown",
+      recomendaciones_validas: ["VENDER", "MANTENER", "COMPRAR", "NO_ENTRAR"],
+      estructura_esperada: {
+        fecha: "YYYY-MM-DD",
+        lectura_general: "texto breve",
+        mercado: "texto breve opcional",
+        acciones: [
+          {
+            ticker: "SAN",
+            nombre: "Banco Santander",
+            recomendacion: "MANTENER",
+            comentario: "texto",
+            situacion_actual: {
+              precio_medio: 10.0,
+              precio_actual: 10.46,
+              beneficio_pct: 4.6
+            },
+            ventas: [
+              {"tramo": 1, "precio": 11.8, "cantidad_pct": 25, "descripcion": "primera venta parcial"},
+              {"tramo": 2, "precio": 12.8, "cantidad_pct": 25, "descripcion": "segunda venta parcial"},
+              {"tramo": 3, "precio": 14.0, "cantidad_pct": 50, "descripcion": "recogida fuerte"}
+            ],
+            compras: [
+              {"tramo": 1, "precio": 9.8, "cantidad_euros": 1000, "descripcion": "compra"},
+              {"tramo": 2, "precio": 9.5, "cantidad_euros": 1500, "descripcion": "compra fuerte"}
+            ],
+            riesgo: "medio",
+            prioridad: "alta"
+          }
+        ]
+      }
+    }
+  };
+}
+
+function generarJsonParaIA(){
+  const data = generarDatosParaIA();
+  el("jsonSalidaIA").value = JSON.stringify(data, null, 2);
+  setStatus("JSON de cartera generado para ChatGPT.");
+}
+
+async function copiarJsonIA(){
+  if(!el("jsonSalidaIA").value.trim()){
+    generarJsonParaIA();
+  }
+  await navigator.clipboard.writeText(el("jsonSalidaIA").value);
+  setStatus("JSON copiado al portapapeles.");
+}
+
+function descargarJsonIA(){
+  const data = el("jsonSalidaIA").value.trim() || JSON.stringify(generarDatosParaIA(), null, 2);
+  downloadFile("mibolsa_para_chatgpt_" + today() + ".json", data);
+  setStatus("JSON descargado.");
+}
+
+function getPromptBaseIA(){
+  const promptUsuario = db.ajustes.promptIA || "Analiza este JSON de mi cartera personal y devuelve recomendaciones en JSON válido.";
+  return `${promptUsuario}
+
+IMPORTANTE:
+Devuelve SOLO JSON válido, sin markdown, sin comentarios fuera del JSON.
+
+Estructura obligatoria:
+{
+  "fecha": "YYYY-MM-DD",
+  "lectura_general": "texto",
+  "mercado": "texto opcional",
+  "acciones": [
+    {
+      "ticker": "SAN",
+      "nombre": "Banco Santander",
+      "recomendacion": "MANTENER",
+      "comentario": "texto",
+      "situacion_actual": {
+        "precio_medio": 10.0,
+        "precio_actual": 10.46,
+        "beneficio_pct": 4.6
+      },
+      "ventas": [
+        {"tramo": 1, "precio": 11.8, "cantidad_pct": 25, "descripcion": "primera venta parcial"},
+        {"tramo": 2, "precio": 12.8, "cantidad_pct": 25, "descripcion": "segunda venta parcial"},
+        {"tramo": 3, "precio": 14.0, "cantidad_pct": 50, "descripcion": "recogida fuerte"}
+      ],
+      "compras": [
+        {"tramo": 1, "precio": 9.8, "cantidad_euros": 1000, "descripcion": "compra"},
+        {"tramo": 2, "precio": 9.5, "cantidad_euros": 1500, "descripcion": "compra fuerte"}
+      ],
+      "riesgo": "medio",
+      "prioridad": "alta"
+    }
+  ]
+}
+
+Datos de mi cartera:
+${JSON.stringify(generarDatosParaIA(), null, 2)}`;
+}
+
+Datos de mi cartera:
+` + JSON.stringify(generarDatosParaIA(), null, 2);
+}
+
+async function copiarPromptIA(){
+  const prompt = getPromptBaseIA();
+  await navigator.clipboard.writeText(prompt);
+  setStatus("Prompt base copiado. Pégalo en ChatGPT.");
+}
+
+function normalizarRespuestaIA(obj){
+  if(Array.isArray(obj)){
+    return {fecha: today(), lectura_general: "", acciones: obj};
+  }
+  if(!obj.acciones && obj.recomendaciones){
+    obj.acciones = obj.recomendaciones;
+  }
+  if(!Array.isArray(obj.acciones)){
+    throw new Error("El JSON debe contener un array llamado 'acciones'.");
+  }
+  return obj;
+}
+
+function cargarRespuestaIA(){
+  const raw = el("jsonEntradaIA").value.trim();
+  if(!raw){
+    alert("Pega primero el JSON devuelto por ChatGPT.");
+    return;
+  }
+
+  try{
+    const obj = normalizarRespuestaIA(JSON.parse(raw));
+    db.recomendacionesIA = {
+      ...obj,
+      cargado_en: new Date().toISOString()
+    };
+    saveDB(db);
+    renderRecomendacionesIA();
+    setStatus("Recomendaciones IA cargadas correctamente.");
+  }catch(e){
+    alert("JSON no válido: " + e.message);
+  }
+}
+
+function pegarEjemploRespuestaIA(){
+  const ejemplo = {
+    fecha: today(),
+    lectura_general: "El mercado está validando la entrada. No se recomienda vender todavía salvo llegada a objetivos.",
+    mercado: "Escenario de seguimiento manual. Revisar precios antes de ejecutar órdenes.",
+    acciones: [
+      {
+        ticker: "BBVA",
+        nombre: "BBVA",
+        recomendacion: "MANTENER",
+        comentario: "Entrada validada. Mantener mientras no pierda soportes.",
+        situacion_actual: {precio_medio: 17.93, precio_actual: 18.48, beneficio_pct: 3.0},
+        ventas: [
+          {tramo: 1, precio: 21.50, cantidad_pct: 25, descripcion: "primera venta parcial"},
+          {tramo: 2, precio: 23.50, cantidad_pct: 25, descripcion: "segunda venta parcial"},
+          {tramo: 3, precio: 25.00, cantidad_pct: 50, descripcion: "recogida fuerte"}
+        ],
+        compras: [
+          {tramo: 1, precio: 17.20, cantidad_euros: 1000, descripcion: "compra"},
+          {tramo: 2, precio: 16.50, cantidad_euros: 1500, descripcion: "compra fuerte"}
+        ],
+        riesgo: "medio",
+        prioridad: "alta"
+      },
+      {
+        ticker: "SAN",
+        nombre: "Banco Santander",
+        recomendacion: "MANTENER",
+        comentario: "Valor fuerte de la cartera. No vender en fase inicial.",
+        situacion_actual: {precio_medio: 10.00, precio_actual: 10.46, beneficio_pct: 4.6},
+        ventas: [
+          {tramo: 1, precio: 11.80, cantidad_pct: 25, descripcion: "primera venta parcial"},
+          {tramo: 2, precio: 12.80, cantidad_pct: 25, descripcion: "segunda venta parcial"},
+          {tramo: 3, precio: 14.00, cantidad_pct: 50, descripcion: "fuerte recogida"}
+        ],
+        compras: [
+          {tramo: 1, precio: 9.80, cantidad_euros: 1000, descripcion: "compra"},
+          {tramo: 2, precio: 9.50, cantidad_euros: 1500, descripcion: "compra fuerte"}
+        ],
+        riesgo: "medio",
+        prioridad: "alta"
+      },
+      {
+        ticker: "MAP",
+        nombre: "Mapfre",
+        recomendacion: "MANTENER",
+        comentario: "Más lenta que BBVA y Santander. Esperar antes de ampliar.",
+        situacion_actual: {precio_medio: 4.12, precio_actual: 4.17, beneficio_pct: 1.2},
+        ventas: [
+          {tramo: 1, precio: 4.80, cantidad_pct: 25, descripcion: "primera venta parcial"},
+          {tramo: 2, precio: 5.20, cantidad_pct: 25, descripcion: "segunda venta parcial"},
+          {tramo: 3, precio: 5.60, cantidad_pct: 50, descripcion: "fuerte recogida"}
+        ],
+        compras: [
+          {tramo: 1, precio: 3.90, cantidad_euros: 1000, descripcion: "esperar compra"},
+          {tramo: 2, precio: 3.70, cantidad_euros: 1500, descripcion: "compra fuerte"}
+        ],
+        riesgo: "medio",
+        prioridad: "media"
+      }
+    ]
+  };
+  el("jsonEntradaIA").value = JSON.stringify(ejemplo, null, 2);
+  setStatus("Ejemplo pegado.");
+}
+
+function borrarRecomendacionesIA(){
+  if(!confirm("¿Borrar recomendaciones IA guardadas?")) return;
+  db.recomendacionesIA = null;
+  saveDB(db);
+  renderRecomendacionesIA();
+  setStatus("Recomendaciones IA borradas.");
+}
+
+function claseRecomendacionIA(rec){
+  const r = (rec || "").toUpperCase();
+  if(r === "COMPRAR") return "good";
+  if(r === "MANTENER") return "warn";
+  if(r === "VENDER") return "bad";
+  if(r === "NO_ENTRAR") return "muted";
+  return "";
+}
+
+function renderTramosIA(tramos, tipo){
+  if(!Array.isArray(tramos) || !tramos.length){
+    return `<p class="muted">Sin tramos de ${tipo}.</p>`;
+  }
+
+  return `<div class="ia-tramos">
+    ${tramos.map(t=>`
+      <div class="ia-tramo">
+        <strong>Tramo ${t.tramo ?? ""}</strong>
+        <span>Precio: ${t.precio ?? "-"}</span>
+        <span>${t.cantidad_pct !== undefined ? "Cantidad: " + t.cantidad_pct + "%" : ""}</span>
+        <span>${t.cantidad_euros !== undefined ? "Importe: " + money(t.cantidad_euros, db.ajustes.moneda) : ""}</span>
+        <small>${t.descripcion || ""}</small>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderRecomendacionesIA(){
+  const resumen = el("panelResumenIA");
+  const panel = el("panelRecomendacionesIA");
+  if(!resumen || !panel) return;
+
+  const data = db.recomendacionesIA;
+  if(!data){
+    resumen.innerHTML = `<p class="muted">Todavía no hay recomendaciones cargadas. Genera el JSON, pásalo a ChatGPT y pega aquí la respuesta.</p>`;
+    panel.innerHTML = "";
+    return;
+  }
+
+  resumen.innerHTML = `
+    <div class="totals-bar">
+      <span><strong>Fecha análisis:</strong> ${data.fecha || "-"}</span>
+      <span><strong>Cargado:</strong> ${data.cargado_en ? new Date(data.cargado_en).toLocaleString("es-ES") : "-"}</span>
+      <span><strong>Valores:</strong> ${Array.isArray(data.acciones) ? data.acciones.length : 0}</span>
+    </div>
+    <p>${data.lectura_general || ""}</p>
+    ${data.mercado ? `<p class="muted">${data.mercado}</p>` : ""}
+  `;
+
+  panel.innerHTML = (data.acciones || []).map(a=>{
+    const rec = a.recomendacion || "";
+    const situacion = a.situacion_actual || {};
+    return `<article class="ia-card">
+      <div class="ia-card-header">
+        <div>
+          <h3>${a.nombre || a.ticker || "Valor"}</h3>
+          <span class="muted">${a.ticker || ""}</span>
+        </div>
+        <strong class="ia-badge ${claseRecomendacionIA(rec)}">${rec}</strong>
+      </div>
+
+      <div class="ia-metrics">
+        <span><strong>Precio medio:</strong> ${situacion.precio_medio ?? "-"}</span>
+        <span><strong>Precio actual:</strong> ${situacion.precio_actual ?? "-"}</span>
+        <span><strong>Beneficio:</strong> ${situacion.beneficio_pct ?? "-"}%</span>
+        <span><strong>Riesgo:</strong> ${a.riesgo || "-"}</span>
+        <span><strong>Prioridad:</strong> ${a.prioridad || "-"}</span>
+      </div>
+
+      <p>${a.comentario || ""}</p>
+
+      <div class="grid two">
+        <div>
+          <h4>Ventas propuestas</h4>
+          ${renderTramosIA(a.ventas, "venta")}
+        </div>
+        <div>
+          <h4>Compras propuestas</h4>
+          ${renderTramosIA(a.compras, "compra")}
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+}
+
 function cargarAjustesForm(){
   el("ajProvider").value = db.ajustes.provider;
   el("ajApiKey").value = db.ajustes.apiKey;
@@ -603,6 +974,7 @@ function cargarAjustesForm(){
   el("ajVentaMin").value = db.ajustes.ventaMin;
   el("ajMoneda").value = db.ajustes.moneda;
   el("ajImpuestoPct").value = db.ajustes.impuestoPct;
+  if(el("ajPromptIA")) el("ajPromptIA").value = db.ajustes.promptIA || "";
 }
 
 function guardarAjustes(e){
@@ -613,7 +985,8 @@ function guardarAjustes(e){
     ventaPct: Number(el("ajVentaPct").value || 0),
     ventaMin: Number(el("ajVentaMin").value || 0),
     moneda: el("ajMoneda").value.trim() || "EUR",
-    impuestoPct: Number(el("ajImpuestoPct").value || 0)
+    impuestoPct: Number(el("ajImpuestoPct").value || 0),
+    promptIA: el("ajPromptIA") ? el("ajPromptIA").value.trim() : ""
   };
   saveDB(db);
   renderAll();
@@ -635,7 +1008,8 @@ function importarDatos(e){
       db = {
         movimientos: imported.movimientos || [],
         cotizaciones: imported.cotizaciones || {},
-        ajustes: {...defaultData.ajustes, ...(imported.ajustes || {})}
+        ajustes: {...defaultData.ajustes, ...(imported.ajustes || {})},
+        recomendacionesIA: imported.recomendacionesIA || null
       };
       saveDB(db);
       renderAll();

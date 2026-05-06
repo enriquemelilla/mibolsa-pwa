@@ -287,19 +287,50 @@
       </section>
 
       <section id="view-recomendaciones" class="view">
-        <div class="card">
-          <h2>Recomendaciones ChatGPT</h2>
-          <p class="muted">Módulo preparado para desarrollar más adelante.</p>
-          <div class="placeholder">
-            <h3>Próximas funciones previstas</h3>
-            <ul>
-              <li>Análisis de cartera.</li>
-              <li>Alertas de precio objetivo.</li>
-              <li>Dividendos y rentabilidad por dividendo.</li>
-              <li>Evaluación de riesgo.</li>
-              <li>Generación de informe para copiar en ChatGPT.</li>
-            </ul>
+        <div class="layout-2">
+          <div class="card">
+            <h2>Recomendaciones IA</h2>
+            <p class="muted">
+              Exporta los datos de tu cartera, pásalos a ChatGPT con tu prompt y pega aquí el JSON de respuesta.
+            </p>
+
+            <div class="actions vertical">
+              <button class="btn primary" id="btnGenerarJsonIA" type="button">Generar JSON para ChatGPT</button>
+              <button class="btn secondary" id="btnCopiarJsonIA" type="button">Copiar JSON cartera</button>
+              <button class="btn secondary" id="btnDescargarJsonIA" type="button">Descargar JSON cartera</button>
+              <button class="btn ghost" id="btnCopiarPromptIA" type="button">Copiar prompt base</button>
+            </div>
+
+            <label>JSON de cartera para enviar a ChatGPT</label>
+            <textarea id="jsonSalidaIA" rows="14" placeholder="Aquí se generará el JSON de tu cartera, seguimiento y cotizaciones actuales."></textarea>
           </div>
+
+          <div class="card">
+            <h2>Cargar respuesta de ChatGPT</h2>
+            <p class="muted">
+              Pega aquí el JSON que te devuelva ChatGPT con recomendación, compras y ventas por tramos.
+            </p>
+
+            <label>JSON devuelto por ChatGPT</label>
+            <textarea id="jsonEntradaIA" rows="14" placeholder='Pega aquí el JSON de respuesta. Ejemplo: {"fecha":"2026-05-06","acciones":[...]}'></textarea>
+
+            <div class="actions vertical">
+              <button class="btn primary" id="btnCargarRespuestaIA" type="button">Cargar recomendaciones</button>
+              <button class="btn secondary" id="btnEjemploRespuestaIA" type="button">Pegar ejemplo</button>
+              <button class="btn danger" id="btnBorrarRecomendacionesIA" type="button">Borrar recomendaciones guardadas</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Resultado cargado</h2>
+              <p class="muted">Recomendaciones por valor, tramos de venta y tramos de compra.</p>
+            </div>
+          </div>
+          <div id="panelResumenIA" class="ia-summary"></div>
+          <div id="panelRecomendacionesIA" class="ia-grid"></div>
         </div>
       </section>
 
@@ -342,6 +373,10 @@
                 <input id="ajImpuestoPct" type="number" min="0" step="0.01" placeholder="0">
               </div>
             </div>
+
+            <label>Prompt personalizado para ChatGPT</label>
+            <textarea id="ajPromptIA" rows="10" placeholder="Escribe aquí las instrucciones que quieres enviar a ChatGPT junto con el JSON de tu cartera."></textarea>
+            <p class="hint">Este texto se guardará en Ajustes y se incluirá dentro del JSON generado en Recomendaciones IA.</p>
 
             <button class="btn primary" type="submit">Guardar ajustes</button>
           </form>

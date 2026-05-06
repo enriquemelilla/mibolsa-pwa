@@ -253,3 +253,43 @@ Importante:
   ```
 - No es la mejor opción para acciones españolas como Santander España, BBVA España o Mapfre.
 - Para España, mantén cotización manual o prueba otro proveedor especializado.
+
+
+## V8 Recomendaciones IA
+
+Nueva pestaña desarrollada:
+
+- Generar JSON de cartera para ChatGPT.
+- Copiar JSON de cartera.
+- Descargar JSON de cartera.
+- Copiar prompt base.
+- Pegar JSON devuelto por ChatGPT.
+- Cargar recomendaciones y guardarlas en localStorage.
+- Ver por acción:
+  - recomendación: VENDER, MANTENER, COMPRAR, NO_ENTRAR
+  - situación actual
+  - beneficio aproximado
+  - 3 tramos de venta
+  - 2 tramos de compra
+  - riesgo
+  - prioridad
+  - comentario profesional
+
+La respuesta esperada de ChatGPT debe ser JSON puro, sin markdown.
+
+
+## V9 Prompt IA en Ajustes
+
+Añadido en Ajustes un campo:
+
+```text
+Prompt personalizado para ChatGPT
+```
+
+Ese prompt:
+
+- se guarda en localStorage,
+- se incluye dentro del JSON generado para ChatGPT como `prompt_usuario`,
+- se usa al pulsar `Copiar prompt base` en Recomendaciones IA.
+
+El resto de la estructura se mantiene igual.

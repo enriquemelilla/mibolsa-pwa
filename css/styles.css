@@ -517,3 +517,87 @@ button,
     grid-template-columns:1fr!important;
   }
 }
+
+
+/* Recomendaciones IA */
+.ia-summary{
+  margin-bottom:14px;
+}
+
+.ia-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:14px;
+}
+
+.ia-card{
+  background:#0f172a;
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+}
+
+.ia-card-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+
+.ia-card h3{
+  margin:0;
+}
+
+.ia-card h4{
+  margin-bottom:8px;
+}
+
+.ia-badge{
+  display:inline-flex;
+  padding:7px 10px;
+  border-radius:999px;
+  background:#162033;
+  border:1px solid var(--line);
+  font-size:12px;
+}
+
+.ia-metrics{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin:10px 0;
+}
+
+.ia-metrics span,
+.ia-tramo{
+  background:#162033;
+  border:1px solid rgba(51,65,85,.75);
+  border-radius:12px;
+  padding:8px;
+}
+
+.ia-tramos{
+  display:grid;
+  gap:8px;
+}
+
+.ia-tramo{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.ia-tramo small{
+  color:var(--muted);
+}
+
+@media(max-width:700px){
+  .ia-grid{
+    grid-template-columns:1fr;
+  }
+
+  .ia-metrics{
+    grid-template-columns:1fr;
+  }
+}

@@ -9,8 +9,10 @@ const defaultData = {
     ventaPct: 0.25,
     ventaMin: 5,
     moneda: "EUR",
-    impuestoPct: 0
-  }
+    impuestoPct: 0,
+    promptIA: "Analiza mi cartera personal de acciones con un criterio prudente.\n\nDebes valorar cada acción según:\n- precio medio de compra\n- precio actual introducido\n- beneficio o pérdida aproximada\n- fuerza relativa entre los valores\n- conveniencia de vender, mantener, comprar o no entrar\n- posibles compras en retrocesos\n- posibles ventas parciales por tramos\n\nDevuélveme SOLO JSON válido, sin markdown ni texto adicional.\n\nPor cada acción quiero:\n- recomendación: VENDER, MANTENER, COMPRAR o NO_ENTRAR\n- comentario profesional breve\n- situación actual\n- 3 tramos de venta con precio, porcentaje y descripción\n- 2 tramos de compra con precio, importe aproximado y descripción\n- riesgo\n- prioridad\n\nNo inventes datos que no estén en el JSON. Si falta información, indícalo dentro del comentario."
+  },
+  recomendacionesIA: null
 };
 
 function loadDB(){
@@ -21,7 +23,8 @@ function loadDB(){
     return {
       movimientos: parsed.movimientos || [],
       cotizaciones: parsed.cotizaciones || {},
-      ajustes: {...defaultData.ajustes, ...(parsed.ajustes || {})}
+      ajustes: {...defaultData.ajustes, ...(parsed.ajustes || {})},
+      recomendacionesIA: parsed.recomendacionesIA || null
     };
   }catch(e){
     console.error(e);
