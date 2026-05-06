@@ -13,9 +13,13 @@ async function descargarCotizacion(provider, apiKey, symbol){
   if(!provider || provider === "manual"){
     throw new Error("Proveedor API no configurado. Usa cotización manual o configura API en Ajustes.");
   }
+
+  // Yahoo Finance experimental NO necesita API key.
+  // Finnhub, Twelve Data y Alpha Vantage sí la necesitan.
   if(provider !== "yahoo" && !apiKey){
     throw new Error("Falta API key.");
   }
+
   if(!symbol){
     throw new Error("Falta símbolo API.");
   }

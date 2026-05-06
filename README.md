@@ -139,3 +139,11 @@ La validación se ha ajustado para que solo pidan clave:
 - Alpha Vantage
 
 Yahoo puede quedar con API key vacía.
+
+
+## Corrección final de Yahoo sin API key
+
+Se ha corregido la validación para que Yahoo Finance experimental no pida API key.
+
+Si en el móvil sigue apareciendo "Falta API key", no es el código nuevo:
+es la PWA antigua cacheada. Hay que borrar datos de la app o abrir GitHub Pages y recargar.
