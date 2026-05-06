@@ -112,3 +112,18 @@ Importante:
 - Puede fallar por CORS, bloqueo, cookies o cambios internos de Yahoo.
 - Si falla, la aplicación mantiene la opción de introducir cotización manual.
 - Para uso más estable se recomienda Finnhub, Twelve Data o Alpha Vantage.
+
+
+## Corrección error `Unexpected token DOCTYPE`
+
+Esta versión corrige un problema del service worker:
+
+```text
+Unexpected token '<', "<!DOCTYPE..." is not valid JSON
+```
+
+La causa habitual es que una petición externa de API fallaba y la PWA devolvía `index.html`
+como fallback de caché. Ahora el service worker no intercepta APIs externas.
+
+También se ha añadido validación para mostrar un error claro cuando un proveedor devuelve HTML
+en lugar de JSON.

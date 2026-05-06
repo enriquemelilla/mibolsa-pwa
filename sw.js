@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v5-cache";
+const CACHE_NAME = "mibolsa-v5-cache-yahoo-fix";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,6 +27,19 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if(event.request.method !== "GET") return;
+
+  const requestUrl = new URL(event.request.url);
+  const currentUrl = new URL(self.location.href);
+
+  // MUY IMPORTANTE:
+  // No interceptar APIs externas como Yahoo, Finnhub, Twelve Data o Alpha Vantage.
+  // Si se interceptan y fallan, el fallback devuelve index.html y aparece:
+  // "Unexpected token '<', <!DOCTYPE... is not valid JSON".
+  if(requestUrl.origin !== currentUrl.origin){
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then(cached => {
       return cached || fetch(event.request).catch(() => caches.match("./index.html"));
