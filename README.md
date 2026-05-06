@@ -78,3 +78,37 @@ Esta versión está adaptada para ambos formatos:
 - Añadida barra de totales en Movimientos.
 - Añadida barra de totales en Mi cartera.
 - Añadida barra de totales en Comparativa.
+
+
+## Yahoo Finance experimental
+
+Se ha añadido el proveedor:
+
+```text
+Yahoo Finance experimental
+```
+
+Usa el endpoint no oficial:
+
+```text
+https://query1.finance.yahoo.com/v7/finance/quote?symbols=SIMBOLO
+```
+
+Ejemplos de símbolos:
+
+```text
+BBVA.MC
+SAN.MC
+MAP.MC
+IBE.MC
+AAPL
+MSFT
+TSLA
+```
+
+Importante:
+
+- Yahoo Finance no ofrece una API pública oficial estable.
+- Puede fallar por CORS, bloqueo, cookies o cambios internos de Yahoo.
+- Si falla, la aplicación mantiene la opción de introducir cotización manual.
+- Para uso más estable se recomienda Finnhub, Twelve Data o Alpha Vantage.

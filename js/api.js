@@ -37,5 +37,22 @@ async function descargarCotizacion(provider, apiKey, symbol){
     return {price:Number(price), raw:data};
   }
 
+
+  if(provider === "yahoo"){
+    /*
+      Yahoo Finance no ofrece API pública oficial estable.
+      Este endpoint es no oficial y puede fallar por CORS, cookies, bloqueo o cambios internos.
+      Se mantiene como opción experimental para uso personal.
+    */
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}&lang=es-ES&region=ES&corsDomain=finance.yahoo.com`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("Error Yahoo Finance: " + res.status);
+    const data = await res.json();
+    const quote = data?.quoteResponse?.result?.[0];
+    const price = quote?.regularMarketPrice || quote?.postMarketPrice || quote?.preMarketPrice;
+    if(!price) throw new Error("Yahoo Finance no devolvió cotización válida para " + symbol);
+    return {price:Number(price), raw:data};
+  }
+
   throw new Error("Proveedor no reconocido.");
 }
