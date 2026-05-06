@@ -162,3 +162,94 @@ Ejemplos recomendados para España con Twelve Data:
 - BBVA + XMAD
 - MAP + XMAD
 - IBE + XMAD
+
+
+## V6 Exchange Fix
+
+Corrección de la versión con exchange:
+
+- Corregido JavaScript de la tabla Cotizaciones.
+- Añadido campo Exchange/mercado por valor.
+- Twelve Data usa ahora `symbol` + `exchange`.
+- Ejemplo para España:
+  - Proveedor: Twelve Data
+  - Símbolo: SAN
+  - Exchange: XMAD
+
+
+## Corrección Twelve Data para España
+
+En esta versión, cuando el proveedor sea Twelve Data y exista Exchange, la app no llama así:
+
+```text
+symbol=SAN&exchange=XMAD
+```
+
+Ahora llama así:
+
+```text
+symbol=SAN:XMAD
+```
+
+Ejemplos:
+
+```text
+SAN + XMAD  => SAN:XMAD
+BBVA + XMAD => BBVA:XMAD
+MAP + XMAD  => MAP:XMAD
+IBE + XMAD  => IBE:XMAD
+```
+
+Esto evita que `SAN` se interprete como ADR/NYSE.
+
+
+## Proveedor Massive / Polygon USA
+
+Se ha añadido el proveedor:
+
+```text
+Massive / Polygon USA
+```
+
+Pasos:
+
+1. Entrar en:
+   ```text
+   https://massive.com/dashboard/keys
+   ```
+
+2. Copiar la API key.
+
+3. En MiBolsa:
+   ```text
+   Ajustes → Proveedor API → Massive / Polygon USA
+   Ajustes → API Key → pegar clave
+   ```
+
+4. En cada valor:
+   ```text
+   Símbolo API: AAPL
+   Exchange: vacío
+   ```
+
+Ejemplos:
+
+```text
+AAPL
+MSFT
+TSLA
+NVDA
+AMZN
+GOOGL
+META
+```
+
+Importante:
+
+- Massive está orientado principalmente al mercado USA.
+- Para el plan gratuito se usa el endpoint de cierre anterior:
+  ```text
+  /v2/aggs/ticker/{ticker}/prev
+  ```
+- No es la mejor opción para acciones españolas como Santander España, BBVA España o Mapfre.
+- Para España, mantén cotización manual o prueba otro proveedor especializado.

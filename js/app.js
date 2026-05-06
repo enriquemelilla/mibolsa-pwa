@@ -255,10 +255,22 @@ function getSeguimiento(){
 function getTodosValoresCotizables(){
   const values = {};
   agruparCartera().forEach(g=>{
-    values[g.ticker] = {tipo:"Cartera", nombre:g.nombre, ticker:g.ticker, apiSymbol:g.apiSymbol, exchange:g.exchange};
+    values[g.ticker] = {
+      tipo:"Cartera",
+      nombre:g.nombre,
+      ticker:g.ticker,
+      apiSymbol:g.apiSymbol || "",
+      exchange:g.exchange || ""
+    };
   });
   getSeguimiento().forEach(s=>{
-    values[s.ticker] = {tipo:"Seguimiento", nombre:s.nombre, ticker:s.ticker, apiSymbol:s.apiSymbol, exchange:s.exchange};
+    values[s.ticker] = {
+      tipo:"Seguimiento",
+      nombre:s.nombre,
+      ticker:s.ticker,
+      apiSymbol:s.apiSymbol || "",
+      exchange:s.exchange || ""
+    };
   });
   return Object.values(values);
 }
@@ -449,13 +461,14 @@ function renderSeguimiento(){
 function renderCotizaciones(){
   const tbody = el("tablaCotizaciones");
   const valores = getTodosValoresCotizables();
+
   tbody.innerHTML = valores.map(v=>{
     const cot = getCotizacion(v.ticker);
     return `<tr>
       <td>${v.tipo}</td>
       <td><strong>${v.nombre}</strong><br><small class="muted">${v.ticker}</small></td>
-      <td><input value="${v.apiSymbol || ""}" onchange="actualizarApiSymbol('${v.ticker}', this.value)"></td>
-      <td><input value="${v.exchange || ""}" onchange="actualizarExchange(\'${v.ticker}\', this.value)"></td>
+      <td><input value="${v.apiSymbol || ""}" onchange="actualizarApiSymbol('${v.ticker}', this.value)" placeholder="SAN, BBVA, MAP"></td>
+      <td><input value="${v.exchange || ""}" onchange="actualizarExchange('${v.ticker}', this.value)" placeholder="XMAD"></td>
       <td><input type="number" step="0.000001" value="${cot ? cot.price : ""}" placeholder="Precio" onchange="guardarCotizacionManual('${v.ticker}', this.value)"></td>
       <td>${cot ? new Date(cot.updatedAt).toLocaleString("es-ES") + " · " + cot.source : "-"}</td>
       <td>
@@ -465,7 +478,7 @@ function renderCotizaciones(){
   }).join("");
 
   if(!valores.length){
-    tbody.innerHTML = `<tr><td colspan="6" class="muted">No hay valores para cotizar. Añade compras o seguimiento.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No hay valores para cotizar. Añade compras o seguimiento.</td></tr>`;
   }
 }
 

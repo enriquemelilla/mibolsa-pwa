@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v5-yahoo-sin-key-final";
+const CACHE_NAME = "mibolsa-v7-massive";
 const ASSETS = [
   "./",
   "./index.html",
