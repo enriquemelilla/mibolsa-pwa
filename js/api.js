@@ -13,7 +13,7 @@ async function descargarCotizacion(provider, apiKey, symbol){
   if(!provider || provider === "manual"){
     throw new Error("Proveedor API no configurado. Usa cotización manual o configura API en Ajustes.");
   }
-  if(!apiKey){
+  if(provider !== "yahoo" && !apiKey){
     throw new Error("Falta API key.");
   }
   if(!symbol){

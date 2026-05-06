@@ -127,3 +127,15 @@ como fallback de caché. Ahora el service worker no intercepta APIs externas.
 
 También se ha añadido validación para mostrar un error claro cuando un proveedor devuelve HTML
 en lugar de JSON.
+
+
+## Corrección Yahoo sin API key
+
+Yahoo Finance experimental no requiere API key.  
+La validación se ha ajustado para que solo pidan clave:
+
+- Finnhub
+- Twelve Data
+- Alpha Vantage
+
+Yahoo puede quedar con API key vacía.
