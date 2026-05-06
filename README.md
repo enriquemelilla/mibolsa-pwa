@@ -147,3 +147,18 @@ Se ha corregido la validación para que Yahoo Finance experimental no pida API k
 
 Si en el móvil sigue apareciendo "Falta API key", no es el código nuevo:
 es la PWA antigua cacheada. Hay que borrar datos de la app o abrir GitHub Pages y recargar.
+
+
+## Soporte exchange / mercado por acción
+
+Ahora cada acción puede guardar:
+
+- símbolo API
+- exchange / mercado
+
+Ejemplos recomendados para España con Twelve Data:
+
+- SAN + XMAD
+- BBVA + XMAD
+- MAP + XMAD
+- IBE + XMAD

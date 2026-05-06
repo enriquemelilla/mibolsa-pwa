@@ -119,6 +119,7 @@ function guardarMovimiento(e){
     nombre: el("movNombre").value.trim(),
     ticker: el("movTicker").value.trim().toUpperCase(),
     apiSymbol: el("movApiSymbol").value.trim().toUpperCase(),
+    exchange: el("movExchange").value.trim().toUpperCase(),
     cantidad: tipo === "SEGUIMIENTO" ? 0 : Number(el("movCantidad").value || 0),
     precio: tipo === "SEGUIMIENTO" ? 0 : Number(el("movPrecio").value || 0),
     gastos: tipo === "SEGUIMIENTO" ? 0 : Number(el("movGastos").value || 0),
@@ -166,6 +167,7 @@ function editarMovimiento(id){
   el("movNombre").value = m.nombre;
   el("movTicker").value = m.ticker;
   el("movApiSymbol").value = m.apiSymbol || "";
+  el("movExchange").value = m.exchange || "";
   el("movCantidad").value = m.cantidad || "";
   el("movPrecio").value = m.precio || "";
   el("movGastos").value = m.gastos || "";
@@ -208,6 +210,7 @@ function agruparCartera(){
         ticker:m.ticker,
         nombre:m.nombre,
         apiSymbol:m.apiSymbol,
+        exchange:m.exchange,
         cantidadComprada:0,
         cantidadVendida:0,
         invertidoCompras:0,
@@ -230,6 +233,7 @@ function agruparCartera(){
       g.gastosVenta += m.gastos;
     }
     if(m.apiSymbol) g.apiSymbol = m.apiSymbol;
+    if(m.exchange) g.exchange = m.exchange;
     if(m.nombre) g.nombre = m.nombre;
   });
 
@@ -251,10 +255,10 @@ function getSeguimiento(){
 function getTodosValoresCotizables(){
   const values = {};
   agruparCartera().forEach(g=>{
-    values[g.ticker] = {tipo:"Cartera", nombre:g.nombre, ticker:g.ticker, apiSymbol:g.apiSymbol};
+    values[g.ticker] = {tipo:"Cartera", nombre:g.nombre, ticker:g.ticker, apiSymbol:g.apiSymbol, exchange:g.exchange};
   });
   getSeguimiento().forEach(s=>{
-    values[s.ticker] = {tipo:"Seguimiento", nombre:s.nombre, ticker:s.ticker, apiSymbol:s.apiSymbol};
+    values[s.ticker] = {tipo:"Seguimiento", nombre:s.nombre, ticker:s.ticker, apiSymbol:s.apiSymbol, exchange:s.exchange};
   });
   return Object.values(values);
 }
@@ -451,6 +455,7 @@ function renderCotizaciones(){
       <td>${v.tipo}</td>
       <td><strong>${v.nombre}</strong><br><small class="muted">${v.ticker}</small></td>
       <td><input value="${v.apiSymbol || ""}" onchange="actualizarApiSymbol('${v.ticker}', this.value)"></td>
+      <td><input value="${v.exchange || ""}" onchange="actualizarExchange(\'${v.ticker}\', this.value)"></td>
       <td><input type="number" step="0.000001" value="${cot ? cot.price : ""}" placeholder="Precio" onchange="guardarCotizacionManual('${v.ticker}', this.value)"></td>
       <td>${cot ? new Date(cot.updatedAt).toLocaleString("es-ES") + " · " + cot.source : "-"}</td>
       <td>
@@ -462,6 +467,15 @@ function renderCotizaciones(){
   if(!valores.length){
     tbody.innerHTML = `<tr><td colspan="6" class="muted">No hay valores para cotizar. Añade compras o seguimiento.</td></tr>`;
   }
+}
+
+function actualizarExchange(ticker, exchange){
+  db.movimientos.forEach(m=>{
+    if(m.ticker === ticker) m.exchange = exchange.trim().toUpperCase();
+  });
+  saveDB(db);
+  renderAll();
+  setStatus("Exchange actualizado.");
 }
 
 function actualizarApiSymbol(ticker, symbol){
@@ -485,7 +499,7 @@ async function actualizarUnaApi(ticker){
   if(!valor) return;
   try{
     setStatus("Descargando cotización de " + ticker + "...");
-    const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, valor.apiSymbol);
+    const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, valor.apiSymbol, valor.exchange);
     setCotizacion(ticker, r.price, db.ajustes.provider);
     renderAll();
     setStatus("Cotización actualizada: " + ticker);
@@ -500,7 +514,7 @@ async function actualizarTodasApi(){
   if(!valores.length) return;
   for(const v of valores){
     try{
-      const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol);
+      const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
       setCotizacion(v.ticker, r.price, db.ajustes.provider);
     }catch(e){
       console.warn("Error cotizando", v.ticker, e);

@@ -9,7 +9,7 @@ async function leerJsonSeguro(res, nombreProveedor){
   }
 }
 
-async function descargarCotizacion(provider, apiKey, symbol){
+async function descargarCotizacion(provider, apiKey, symbol, exchange=""){
   if(!provider || provider === "manual"){
     throw new Error("Proveedor API no configurado. Usa cotización manual o configura API en Ajustes.");
   }
@@ -34,7 +34,8 @@ async function descargarCotizacion(provider, apiKey, symbol){
   }
 
   if(provider === "twelvedata"){
-    const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`;
+    const exchangeParam = exchange ? `&exchange=${encodeURIComponent(exchange)}` : "";
+    const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbol)}${exchangeParam}&apikey=${encodeURIComponent(apiKey)}`;
     const res = await fetch(url);
     if(!res.ok) throw new Error("Error Twelve Data: " + res.status);
     const data = await leerJsonSeguro(res, "Twelve Data");
