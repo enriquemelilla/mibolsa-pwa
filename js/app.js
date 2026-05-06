@@ -5,6 +5,13 @@ const el = (id) => document.getElementById(id);
 
 function setStatus(msg){ el("status").textContent = msg; }
 
+function togglePanel(id){
+  const panel = el(id);
+  if(!panel) return;
+  panel.classList.toggle("closed");
+  panel.classList.toggle("open");
+}
+
 
 function marcarTablasResponsive(){
   document.querySelectorAll(".responsive-table").forEach(table=>{
@@ -43,7 +50,6 @@ function init(){
   el("btnExportar").addEventListener("click", exportarDatos);
   el("inputImportar").addEventListener("change", importarDatos);
   el("btnBorrarTodo").addEventListener("click", borrarTodo);
-  el("btnDemo").addEventListener("click", cargarDemo);
   el("btnActualizarTodasApi").addEventListener("click", actualizarTodasApi);
   el("btnRefrescarCotizaciones").addEventListener("click", renderCotizaciones);
 
@@ -301,6 +307,21 @@ function renderMovimientos(){
     .filter(m => !q || `${m.fecha} ${m.tipo} ${m.nombre} ${m.ticker}`.toLowerCase().includes(q))
     .sort((a,b)=>(b.fecha || "").localeCompare(a.fecha || ""));
 
+  const compras = rows.filter(m=>m.tipo==="COMPRA").length;
+  const ventas = rows.filter(m=>m.tipo==="VENTA").length;
+  const seguimiento = rows.filter(m=>m.tipo==="SEGUIMIENTO").length;
+  const importeCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((s,m)=>s + Number(m.total || (m.cantidad*m.precio+m.gastos) || 0),0);
+  const importeVentas = rows.filter(m=>m.tipo==="VENTA").reduce((s,m)=>s + Number(m.total || (m.cantidad*m.precio-m.gastos) || 0),0);
+
+  if(el("totalesMovimientos")){
+    el("totalesMovimientos").innerHTML = `
+      <span><strong>Movimientos:</strong> ${rows.length}</span>
+      <span class="good"><strong>Compras:</strong> ${compras} · ${money(importeCompras, db.ajustes.moneda)}</span>
+      <span class="bad"><strong>Ventas:</strong> ${ventas} · ${money(importeVentas, db.ajustes.moneda)}</span>
+      <span class="warn"><strong>Seguimiento:</strong> ${seguimiento}</span>
+    `;
+  }
+
   tbody.innerHTML = rows.map(m=>`
     <tr>
       <td>${m.fecha || ""}</td>
@@ -314,11 +335,42 @@ function renderMovimientos(){
         <button class="small-btn delete" onclick="borrarMovimiento('${m.id}')">Borrar</button>
       </td>
     </tr>`).join("");
+
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No hay movimientos.</td></tr>`;
+  }
 }
 
 function renderCartera(){
   const tbody = el("tablaCartera");
   const cartera = agruparCartera();
+
+  let totalAcciones = 0;
+  let totalCompradas = 0;
+  let totalVendidas = 0;
+  let totalInvertido = 0;
+  let totalValorActual = 0;
+
+  cartera.forEach(g=>{
+    const cot = getCotizacion(g.ticker);
+    totalAcciones += Number(g.cantidadNeta || 0);
+    totalCompradas += Number(g.cantidadComprada || 0);
+    totalVendidas += Number(g.cantidadVendida || 0);
+    totalInvertido += Number(g.invertidoNeto || 0);
+    totalValorActual += cot ? cot.price * g.cantidadNeta : 0;
+  });
+
+  if(el("totalesCartera")){
+    el("totalesCartera").innerHTML = `
+      <span><strong>Valores:</strong> ${cartera.length}</span>
+      <span><strong>Acciones netas:</strong> ${num(totalAcciones,4)}</span>
+      <span><strong>Compradas:</strong> ${num(totalCompradas,4)}</span>
+      <span><strong>Vendidas:</strong> ${num(totalVendidas,4)}</span>
+      <span><strong>Invertido neto:</strong> ${money(totalInvertido, db.ajustes.moneda)}</span>
+      <span><strong>Valor actual:</strong> ${money(totalValorActual, db.ajustes.moneda)}</span>
+    `;
+  }
+
   tbody.innerHTML = cartera.map(g=>{
     const cot = getCotizacion(g.ticker);
     const valorActual = cot ? cot.price * g.cantidadNeta : 0;
@@ -461,7 +513,14 @@ async function actualizarTodasApi(){
 function renderComparativa(){
   const tbody = el("tablaComparativa");
   const cartera = agruparCartera().filter(g=>g.cantidadNeta > 0);
-  tbody.innerHTML = cartera.map(g=>{
+
+  let totalInvertido = 0;
+  let totalValorActual = 0;
+  let totalGastosVenta = 0;
+  let totalBruto = 0;
+  let totalNeto = 0;
+
+  const rows = cartera.map(g=>{
     const cot = getCotizacion(g.ticker);
     const valorActual = cot ? cot.price * g.cantidadNeta : 0;
     const gastosVenta = valorActual > 0 ? estimarGastosVenta(valorActual) : 0;
@@ -469,6 +528,14 @@ function renderComparativa(){
     const impuesto = bruto > 0 ? bruto * (Number(db.ajustes.impuestoPct || 0)/100) : 0;
     const neto = bruto - gastosVenta - impuesto;
     const rent = g.invertidoNeto ? (neto / g.invertidoNeto) * 100 : 0;
+
+    if(cot){
+      totalInvertido += g.invertidoNeto;
+      totalValorActual += valorActual;
+      totalGastosVenta += gastosVenta;
+      totalBruto += bruto;
+      totalNeto += neto;
+    }
 
     return `<tr>
       <td><strong>${g.nombre}</strong><br><small class="muted">${g.ticker}</small></td>
@@ -480,7 +547,22 @@ function renderComparativa(){
       <td class="${neto>=0?'good':'bad'}">${cot ? money(neto, db.ajustes.moneda) : "-"}</td>
       <td class="${rent>=0?'good':'bad'}">${cot ? num(rent,2)+" %" : "-"}</td>
     </tr>`;
-  }).join("");
+  });
+
+  const totalRent = totalInvertido ? (totalNeto / totalInvertido) * 100 : 0;
+
+  if(el("totalesComparativa")){
+    el("totalesComparativa").innerHTML = `
+      <span><strong>Valores abiertos:</strong> ${cartera.length}</span>
+      <span><strong>Invertido:</strong> ${money(totalInvertido, db.ajustes.moneda)}</span>
+      <span><strong>Valor actual:</strong> ${money(totalValorActual, db.ajustes.moneda)}</span>
+      <span><strong>Gastos venta:</strong> ${money(totalGastosVenta, db.ajustes.moneda)}</span>
+      <span class="${totalBruto>=0?'good':'bad'}"><strong>Beneficio bruto:</strong> ${money(totalBruto, db.ajustes.moneda)}</span>
+      <span class="${totalNeto>=0?'good':'bad'}"><strong>Beneficio neto:</strong> ${money(totalNeto, db.ajustes.moneda)} · ${num(totalRent,2)} %</span>
+    `;
+  }
+
+  tbody.innerHTML = rows.join("");
 
   if(!cartera.length){
     tbody.innerHTML = `<tr><td colspan="8" class="muted">No hay posiciones abiertas para comparar.</td></tr>`;
@@ -546,20 +628,5 @@ function borrarTodo(){
   setStatus("Datos borrados.");
 }
 
-function cargarDemo(){
-  if(!confirm("¿Cargar datos demo? Se añadirán a los datos actuales.")) return;
-  db.movimientos.push(
-    {id:uid(), tipo:"COMPRA", nombre:"BBVA", ticker:"BBVA", apiSymbol:"BBVA.MC", cantidad:335, precio:17.92, gastos:4.31, total:6007.11, fecha:today(), mercado:"España", notas:"Compra inicial"},
-    {id:uid(), tipo:"COMPRA", nombre:"Santander", ticker:"SAN", apiSymbol:"SAN.MC", cantidad:400, precio:9.99, gastos:5.78, total:4001.78, fecha:today(), mercado:"España", notas:"Compra inicial"},
-    {id:uid(), tipo:"COMPRA", nombre:"Mapfre", ticker:"MAP", apiSymbol:"MAP.MC", cantidad:609, precio:4.115, gastos:5.30, total:2511.34, fecha:today(), mercado:"España", notas:"Compra inicial"},
-    {id:uid(), tipo:"SEGUIMIENTO", nombre:"Iberdrola", ticker:"IBE", apiSymbol:"IBE.MC", cantidad:0, precio:0, gastos:0, total:0, fecha:today(), mercado:"España", notas:"Valor para vigilar"}
-  );
-  setCotizacion("BBVA", 18.48, "manual");
-  setCotizacion("SAN", 10.46, "manual");
-  setCotizacion("MAP", 4.17, "manual");
-  saveDB(db);
-  renderAll();
-  setStatus("Datos demo cargados.");
-}
 
 window.addEventListener("DOMContentLoaded", init);

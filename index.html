@@ -17,7 +17,7 @@
       </div>
       <div class="topbar-actions">
         <button id="btnInstall" class="btn secondary hidden">Instalar App</button>
-        <button id="btnDemo" class="btn ghost">Datos demo</button>
+        
       </div>
     </header>
 
@@ -135,9 +135,17 @@
 
           <div class="card">
             <div class="card-header">
-              <h2>Listado de movimientos</h2>
-              <input id="buscarMovimiento" class="search" placeholder="Buscar acción, ticker o tipo...">
+              <div>
+                <h2>Listado de movimientos</h2>
+                <p class="muted">Puedes plegar el listado para que ocupe menos espacio.</p>
+              </div>
+              <div class="header-actions">
+                <input id="buscarMovimiento" class="search" placeholder="Buscar acción, ticker o tipo...">
+                <button class="btn secondary" type="button" onclick="togglePanel('panelMovimientos')">Plegar / desplegar</button>
+              </div>
             </div>
+            <div id="totalesMovimientos" class="totals-bar"></div>
+            <div id="panelMovimientos" class="collapsible open">
             <div class="table-wrap">
               <table class="responsive-table">
                 <thead>
@@ -154,6 +162,7 @@
                 <tbody id="tablaMovimientos"></tbody>
               </table>
             </div>
+            </div>
           </div>
         </div>
       </section>
@@ -165,7 +174,10 @@
               <h2>Cartera real agrupada</h2>
               <p class="muted">Las compras suman acciones y las ventas restan acciones.</p>
             </div>
+            <button class="btn secondary" type="button" onclick="togglePanel('panelCartera')">Plegar / desplegar</button>
           </div>
+          <div id="totalesCartera" class="totals-bar"></div>
+          <div id="panelCartera" class="collapsible open">
           <div class="table-wrap">
             <table class="responsive-table">
               <thead>
@@ -184,6 +196,7 @@
             </table>
           </div>
           <div id="detalleCartera" class="details-panel hidden"></div>
+          </div>
         </div>
       </section>
 
@@ -238,8 +251,15 @@
 
       <section id="view-comparativa" class="view">
         <div class="card">
-          <h2>Comparativa de cartera con última cotización</h2>
-          <p class="muted">Calcula beneficio bruto, gastos estimados de venta y beneficio neto aproximado.</p>
+          <div class="card-header">
+            <div>
+              <h2>Comparativa de cartera con última cotización</h2>
+              <p class="muted">Calcula beneficio bruto, gastos estimados de venta y beneficio neto aproximado.</p>
+            </div>
+            <button class="btn secondary" type="button" onclick="togglePanel('panelComparativa')">Plegar / desplegar</button>
+          </div>
+          <div id="totalesComparativa" class="totals-bar"></div>
+          <div id="panelComparativa" class="collapsible open">
           <div class="table-wrap">
             <table class="responsive-table">
               <thead>
@@ -256,6 +276,7 @@
               </thead>
               <tbody id="tablaComparativa"></tbody>
             </table>
+          </div>
           </div>
         </div>
       </section>

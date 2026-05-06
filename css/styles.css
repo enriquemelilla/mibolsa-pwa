@@ -441,3 +441,68 @@ button,
     padding:0;
   }
 }
+
+
+/* Plegables y barras de totales */
+.collapsible.open{
+  display:block;
+}
+
+.collapsible.closed{
+  display:none;
+}
+
+.totals-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:10px 0 14px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#0f172a;
+}
+
+.totals-bar span{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:7px 9px;
+  border-radius:10px;
+  background:#162033;
+  border:1px solid rgba(51,65,85,.75);
+}
+
+.header-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.header-actions .search{
+  min-width:230px;
+}
+
+@media(max-width:900px){
+  .header-actions{
+    width:100%;
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .header-actions .search,
+  .header-actions .btn{
+    width:100%;
+    min-width:0;
+  }
+
+  .totals-bar{
+    flex-direction:column;
+  }
+
+  .totals-bar span{
+    width:100%;
+    justify-content:space-between;
+  }
+}

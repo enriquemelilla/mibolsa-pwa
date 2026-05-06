@@ -67,3 +67,14 @@ Esta versión está adaptada para ambos formatos:
 - Botones con tamaño táctil.
 - Inputs con tamaño de letra adecuado para evitar zoom automático.
 - Compatible con instalación PWA en móvil y escritorio.
+
+
+## Cambios de esta versión
+
+- Eliminado el botón de datos demo.
+- Movimientos ahora tiene botón para plegar/desplegar.
+- Mi cartera ahora tiene botón para plegar/desplegar.
+- Comparativa ahora tiene botón para plegar/desplegar.
+- Añadida barra de totales en Movimientos.
+- Añadida barra de totales en Mi cartera.
+- Añadida barra de totales en Comparativa.
