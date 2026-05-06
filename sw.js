@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v9-prompt-ia";
+const CACHE_NAME = "mibolsa-v9-prompt-ia-fix";
 const ASSETS = [
   "./",
   "./index.html",

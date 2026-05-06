@@ -278,18 +278,11 @@ Nueva pestaña desarrollada:
 La respuesta esperada de ChatGPT debe ser JSON puro, sin markdown.
 
 
-## V9 Prompt IA en Ajustes
+## V9 Prompt IA Fix
 
-Añadido en Ajustes un campo:
+Corrección de la versión anterior:
 
-```text
-Prompt personalizado para ChatGPT
-```
-
-Ese prompt:
-
-- se guarda en localStorage,
-- se incluye dentro del JSON generado para ChatGPT como `prompt_usuario`,
-- se usa al pulsar `Copiar prompt base` en Recomendaciones IA.
-
-El resto de la estructura se mantiene igual.
+- Arreglado JavaScript que impedía funcionar a los botones.
+- Añadido prompt personalizado en Ajustes.
+- El prompt se incluye en el JSON como `prompt_usuario`.
+- El botón `Copiar prompt base` usa el prompt guardado.

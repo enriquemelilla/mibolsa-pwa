@@ -724,48 +724,42 @@ function descargarJsonIA(){
 
 function getPromptBaseIA(){
   const promptUsuario = db.ajustes.promptIA || "Analiza este JSON de mi cartera personal y devuelve recomendaciones en JSON válido.";
-  return `${promptUsuario}
+  const estructura = {
+    fecha: "YYYY-MM-DD",
+    lectura_general: "texto",
+    mercado: "texto opcional",
+    acciones: [
+      {
+        ticker: "SAN",
+        nombre: "Banco Santander",
+        recomendacion: "MANTENER",
+        comentario: "texto",
+        situacion_actual: {
+          precio_medio: 10.0,
+          precio_actual: 10.46,
+          beneficio_pct: 4.6
+        },
+        ventas: [
+          {tramo: 1, precio: 11.8, cantidad_pct: 25, descripcion: "primera venta parcial"},
+          {tramo: 2, precio: 12.8, cantidad_pct: 25, descripcion: "segunda venta parcial"},
+          {tramo: 3, precio: 14.0, cantidad_pct: 50, descripcion: "recogida fuerte"}
+        ],
+        compras: [
+          {tramo: 1, precio: 9.8, cantidad_euros: 1000, descripcion: "compra"},
+          {tramo: 2, precio: 9.5, cantidad_euros: 1500, descripcion: "compra fuerte"}
+        ],
+        riesgo: "medio",
+        prioridad: "alta"
+      }
+    ]
+  };
 
-IMPORTANTE:
-Devuelve SOLO JSON válido, sin markdown, sin comentarios fuera del JSON.
-
-Estructura obligatoria:
-{
-  "fecha": "YYYY-MM-DD",
-  "lectura_general": "texto",
-  "mercado": "texto opcional",
-  "acciones": [
-    {
-      "ticker": "SAN",
-      "nombre": "Banco Santander",
-      "recomendacion": "MANTENER",
-      "comentario": "texto",
-      "situacion_actual": {
-        "precio_medio": 10.0,
-        "precio_actual": 10.46,
-        "beneficio_pct": 4.6
-      },
-      "ventas": [
-        {"tramo": 1, "precio": 11.8, "cantidad_pct": 25, "descripcion": "primera venta parcial"},
-        {"tramo": 2, "precio": 12.8, "cantidad_pct": 25, "descripcion": "segunda venta parcial"},
-        {"tramo": 3, "precio": 14.0, "cantidad_pct": 50, "descripcion": "recogida fuerte"}
-      ],
-      "compras": [
-        {"tramo": 1, "precio": 9.8, "cantidad_euros": 1000, "descripcion": "compra"},
-        {"tramo": 2, "precio": 9.5, "cantidad_euros": 1500, "descripcion": "compra fuerte"}
-      ],
-      "riesgo": "medio",
-      "prioridad": "alta"
-    }
-  ]
-}
-
-Datos de mi cartera:
-${JSON.stringify(generarDatosParaIA(), null, 2)}`;
-}
-
-Datos de mi cartera:
-` + JSON.stringify(generarDatosParaIA(), null, 2);
+  return promptUsuario
+    + "\n\nIMPORTANTE:\nDevuelve SOLO JSON válido, sin markdown, sin comentarios fuera del JSON."
+    + "\n\nEstructura obligatoria:\n"
+    + JSON.stringify(estructura, null, 2)
+    + "\n\nDatos de mi cartera:\n"
+    + JSON.stringify(generarDatosParaIA(), null, 2);
 }
 
 async function copiarPromptIA(){
@@ -968,6 +962,7 @@ function renderRecomendacionesIA(){
 }
 
 function cargarAjustesForm(){
+  db.ajustes.promptIA = db.ajustes.promptIA || defaultData.ajustes.promptIA || "";
   el("ajProvider").value = db.ajustes.provider;
   el("ajApiKey").value = db.ajustes.apiKey;
   el("ajVentaPct").value = db.ajustes.ventaPct;
