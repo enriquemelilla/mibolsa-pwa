@@ -39,6 +39,10 @@ function marcarTablasResponsive(){
 function init(){
   document.querySelectorAll(".tab").forEach(btn=>{
     btn.addEventListener("click", ()=>{
+      if(btn.dataset.view === "recomendaciones" && !db.ajustes.avisoRecomendacionesIAAceptado){
+        mostrarAvisoRecomendacionesIA();
+        return;
+      }
       document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
       btn.classList.add("active");
       document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
@@ -72,6 +76,7 @@ function init(){
   bind("btnCargarRespuestaIA", "click", cargarRespuestaIA);
   bind("btnEjemploRespuestaIA", "click", pegarEjemploRespuestaIA);
   bind("btnBorrarRecomendacionesIA", "click", borrarRecomendacionesIA);
+  bind("btnAceptarAvisoIA", "click", aceptarAvisoRecomendacionesIA);
 
   window.addEventListener("beforeinstallprompt", (e)=>{
     e.preventDefault();
@@ -93,6 +98,30 @@ function init(){
   if("serviceWorker" in navigator){
     navigator.serviceWorker.register("sw.js");
   }
+}
+
+function mostrarAvisoRecomendacionesIA(){
+  const modal = el("modalAvisoIA");
+  if(modal) modal.classList.remove("hidden");
+}
+
+function aceptarAvisoRecomendacionesIA(){
+  const modal = el("modalAvisoIA");
+  if(modal) modal.classList.add("hidden");
+  db.ajustes.avisoRecomendacionesIAAceptado = true;
+  saveDB(db);
+  const tab = document.querySelector('.tab[data-view="recomendaciones"]');
+  if(tab) tab.click();
+}
+
+function extraerJsonValido(raw){
+  const texto = (raw || "").trim();
+  const inicio = texto.indexOf("{");
+  const fin = texto.lastIndexOf("}");
+  if(inicio === -1 || fin === -1 || fin <= inicio){
+    throw new Error("No se encontró un objeto JSON válido.");
+  }
+  return texto.slice(inicio, fin + 1);
 }
 
 function toggleTipoMovimiento(){
@@ -801,7 +830,8 @@ function cargarRespuestaIA(){
   }
 
   try{
-    const obj = normalizarRespuestaIA(JSON.parse(raw));
+    const jsonLimpio = extraerJsonValido(raw);
+    const obj = normalizarRespuestaIA(JSON.parse(jsonLimpio));
     db.recomendacionesIA = {
       ...obj,
       cargado_en: new Date().toISOString()
