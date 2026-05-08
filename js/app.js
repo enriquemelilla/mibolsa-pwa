@@ -1016,6 +1016,7 @@ function cargarAjustesForm(){
   db.ajustes.promptIA = db.ajustes.promptIA || defaultData.ajustes.promptIA || "";
   el("ajProvider").value = db.ajustes.provider;
   el("ajApiKey").value = db.ajustes.apiKey;
+  if(el("ajGoogleUrl")) el("ajGoogleUrl").value = db.ajustes.googleUrl || "";
   el("ajVentaPct").value = db.ajustes.ventaPct;
   el("ajVentaMin").value = db.ajustes.ventaMin;
   el("ajMoneda").value = db.ajustes.moneda;
@@ -1028,6 +1029,7 @@ function guardarAjustes(e){
   db.ajustes = {
     provider: el("ajProvider").value,
     apiKey: el("ajApiKey").value.trim(),
+    googleUrl: el("ajGoogleUrl") ? el("ajGoogleUrl").value.trim() : "",
     ventaPct: Number(el("ajVentaPct").value || 0),
     ventaMin: Number(el("ajVentaMin").value || 0),
     moneda: el("ajMoneda").value.trim() || "EUR",

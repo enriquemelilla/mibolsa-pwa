@@ -16,12 +16,52 @@ async function descargarCotizacion(provider, apiKey, symbol, exchange=""){
   if(provider === "manual"){
     throw new Error("Proveedor API no configurado. Usa cotización manual o configura API en Ajustes.");
   }
+  if(provider === "google"){
+  const googleUrl = db.ajustes.googleUrl || "";
+
+  if(!googleUrl){
+    throw new Error("Falta la URL de Google Apps Script en Ajustes.");
+  }
+
+  const res = await fetch(googleUrl);
+
+  if(!res.ok){
+    throw new Error("Error Google Finance / Sheets: " + res.status);
+  }
+
+  const data = await leerJsonSeguro(res, "Google Finance / Sheets");
+
+  const lista = Array.isArray(data) ? data : data.datos;
+
+  if(!Array.isArray(lista)){
+    throw new Error("Google no devolvió una lista válida de cotizaciones.");
+  }
+
+  const encontrado = lista.find(item =>
+    String(item.ticker || "").toUpperCase() === symbol.toUpperCase()
+  );
+
+  if(!encontrado){
+    throw new Error("Google no encontró cotización para " + symbol);
+  }
+
+  const price = Number(encontrado.price);
+
+  if(!price){
+    throw new Error("Google no devolvió precio válido para " + symbol);
+  }
+
+  return {
+    price,
+    raw: encontrado
+  };
+}
 
   // Yahoo Finance experimental NO necesita API key.
   // Finnhub, Twelve Data y Alpha Vantage sí la necesitan.
-  if(provider !== "yahoo" && !apiKey){
-    throw new Error("Falta API key.");
-  }
+  if(provider !== "yahoo" && provider !== "google" && !apiKey){
+  throw new Error("Falta API key.");
+}
 
   if(!symbol){
     throw new Error("Falta símbolo API.");
