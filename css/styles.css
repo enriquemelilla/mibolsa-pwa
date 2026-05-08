@@ -616,3 +616,14 @@ button,
     grid-template-columns:1fr;
   }
 }
+
+.modal-justified{
+  text-align: justify;
+}
+
+.modal-check{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:12px;
+}
