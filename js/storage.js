@@ -7,6 +7,7 @@ const defaultData = {
     provider: "manual",
     googleUrl: "",
     apiKey: "",
+    actualizarAlAbrir: false,
     ventaPct: 0.25,
     ventaMin: 5,
     moneda: "EUR",
