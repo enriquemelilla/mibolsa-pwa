@@ -101,10 +101,27 @@ function init(){
   cargarAjustesForm();
   toggleTipoMovimiento();
   renderAll();
+  configurarAutoActualizacionCotizaciones();
 
   if("serviceWorker" in navigator){
     navigator.serviceWorker.register("sw.js");
   }
+}
+
+function debeActualizarAlVisualizar(){
+  return Boolean(db?.ajustes?.actualizarAlAbrir);
+}
+
+function configurarAutoActualizacionCotizaciones(){
+  const intentarActualizar = ()=>{
+    if(!debeActualizarAlVisualizar()) return;
+    if(document.visibilityState !== "visible") return;
+    actualizarTodasApi(true);
+  };
+
+  document.addEventListener("visibilitychange", intentarActualizar);
+  window.addEventListener("focus", intentarActualizar);
+  setTimeout(intentarActualizar, 0);
 }
 
 function mostrarAvisoRecomendacionesIA(){
@@ -581,19 +598,28 @@ async function actualizarUnaApi(ticker){
   }
 }
 
-async function actualizarTodasApi(){
+async function actualizarTodasApi(esAutomatico = false){
+  if(actualizarTodasApi.enCurso) return;
   const valores = getTodosValoresCotizables();
   if(!valores.length) return;
-  for(const v of valores){
-    try{
-      const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
-      setCotizacion(v.ticker, r.price, db.ajustes.provider);
-    }catch(e){
-      console.warn("Error cotizando", v.ticker, e);
+  actualizarTodasApi.enCurso = true;
+  if(esAutomatico) setStatus("Actualizando cotizaciones automáticamente...");
+  try{
+    for(const v of valores){
+      try{
+        const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
+        setCotizacion(v.ticker, r.price, db.ajustes.provider);
+      }catch(e){
+        console.warn("Error cotizando", v.ticker, e);
+      }
     }
+    renderAll();
+    setStatus(esAutomatico
+      ? "Cotizaciones actualizadas automáticamente al abrir/visualizar la app."
+      : "Proceso de actualización API finalizado. Revisa si algún valor quedó sin actualizar.");
+  } finally {
+    actualizarTodasApi.enCurso = false;
   }
-  renderAll();
-  setStatus("Proceso de actualización API finalizado. Revisa si algún valor quedó sin actualizar.");
 }
 
 function renderComparativa(){
@@ -1017,6 +1043,7 @@ function cargarAjustesForm(){
   el("ajProvider").value = db.ajustes.provider;
   el("ajApiKey").value = db.ajustes.apiKey;
   if(el("ajGoogleUrl")) el("ajGoogleUrl").value = db.ajustes.googleUrl || "";
+  if(el("ajActualizarAlAbrir")) el("ajActualizarAlAbrir").checked = Boolean(db.ajustes.actualizarAlAbrir);
   el("ajVentaPct").value = db.ajustes.ventaPct;
   el("ajVentaMin").value = db.ajustes.ventaMin;
   el("ajMoneda").value = db.ajustes.moneda;
@@ -1027,9 +1054,12 @@ function cargarAjustesForm(){
 function guardarAjustes(e){
   e.preventDefault();
   db.ajustes = {
+    ...defaultData.ajustes,
+    ...db.ajustes,
     provider: el("ajProvider").value,
     apiKey: el("ajApiKey").value.trim(),
     googleUrl: el("ajGoogleUrl") ? el("ajGoogleUrl").value.trim() : "",
+    actualizarAlAbrir: Boolean(el("ajActualizarAlAbrir") && el("ajActualizarAlAbrir").checked),
     ventaPct: Number(el("ajVentaPct").value || 0),
     ventaMin: Number(el("ajVentaMin").value || 0),
     moneda: el("ajMoneda").value.trim() || "EUR",
