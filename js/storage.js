@@ -5,6 +5,7 @@ const defaultData = {
   cotizaciones: {},
   ajustes: {
     provider: "manual",
+    googleUrl: "",
     apiKey: "",
     ventaPct: 0.25,
     ventaMin: 5,
