@@ -116,9 +116,8 @@ function mostrarAvisoRecomendacionesIA(){
 
 function aceptarAvisoRecomendacionesIA(){
   const modal = el("modalAvisoIA");
-  const checkbox = el("chkNoMostrarAvisoIA");
   if(modal) modal.classList.add("hidden");
-  db.ajustes.avisoRecomendacionesIAAceptado = Boolean(checkbox && checkbox.checked);
+  db.ajustes.avisoRecomendacionesIAAceptado = true;
   saveDB(db);
   abrirVista("recomendaciones");
 }
