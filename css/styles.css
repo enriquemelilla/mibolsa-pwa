@@ -622,10 +622,10 @@ button,
 }
 
 .modal-check{
-  display:flex;
-  align-items:flex-start;
+  display:inline-flex;
+  align-items:center;
   justify-content:flex-start;
   text-align:left;
-  gap:8px;
-  margin-top:12px;
+  gap:6px;
+  margin-top:8px;
 }
