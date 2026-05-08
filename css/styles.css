@@ -618,7 +618,7 @@ button,
 }
 
 .modal-justified{
-  text-align: justify;
+  text-align:left;
 }
 
 .modal-check{
