@@ -102,13 +102,16 @@ function init(){
 
 function mostrarAvisoRecomendacionesIA(){
   const modal = el("modalAvisoIA");
+  const checkbox = el("chkNoMostrarAvisoIA");
+  if(checkbox) checkbox.checked = false;
   if(modal) modal.classList.remove("hidden");
 }
 
 function aceptarAvisoRecomendacionesIA(){
   const modal = el("modalAvisoIA");
+  const checkbox = el("chkNoMostrarAvisoIA");
   if(modal) modal.classList.add("hidden");
-  db.ajustes.avisoRecomendacionesIAAceptado = true;
+  db.ajustes.avisoRecomendacionesIAAceptado = Boolean(checkbox && checkbox.checked);
   saveDB(db);
   const tab = document.querySelector('.tab[data-view="recomendaciones"]');
   if(tab) tab.click();
