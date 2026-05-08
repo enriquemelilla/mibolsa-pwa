@@ -36,6 +36,17 @@ function marcarTablasResponsive(){
   });
 }
 
+
+function abrirVista(view){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+  const tab = document.querySelector(`.tab[data-view="${view}"]`);
+  if(tab) tab.classList.add("active");
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  const vista = el("view-" + view);
+  if(vista) vista.classList.add("active");
+  renderAll();
+}
+
 function init(){
   document.querySelectorAll(".tab").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -43,11 +54,7 @@ function init(){
         mostrarAvisoRecomendacionesIA();
         return;
       }
-      document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
-      btn.classList.add("active");
-      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
-      el("view-" + btn.dataset.view).classList.add("active");
-      renderAll();
+      abrirVista(btn.dataset.view);
     });
   });
 
@@ -102,16 +109,18 @@ function init(){
 
 function mostrarAvisoRecomendacionesIA(){
   const modal = el("modalAvisoIA");
+  const checkbox = el("chkNoMostrarAvisoIA");
+  if(checkbox) checkbox.checked = false;
   if(modal) modal.classList.remove("hidden");
 }
 
 function aceptarAvisoRecomendacionesIA(){
   const modal = el("modalAvisoIA");
+  const checkbox = el("chkNoMostrarAvisoIA");
   if(modal) modal.classList.add("hidden");
-  db.ajustes.avisoRecomendacionesIAAceptado = true;
+  db.ajustes.avisoRecomendacionesIAAceptado = Boolean(checkbox && checkbox.checked);
   saveDB(db);
-  const tab = document.querySelector('.tab[data-view="recomendaciones"]');
-  if(tab) tab.click();
+  abrirVista("recomendaciones");
 }
 
 function extraerJsonValido(raw){
