@@ -356,6 +356,31 @@ function estimarGastosVenta(valorActual){
   return Math.max(valorActual * pct, min);
 }
 
+
+function calcularResultadosRealizados(cartera){
+  const impuestoPct = Number(db.ajustes.impuestoPct || 0) / 100;
+  return cartera.reduce((acc, g)=>{
+    const proporcionVendida = g.cantidadComprada > 0 ? Math.min(g.cantidadVendida / g.cantidadComprada, 1) : 0;
+    const costeComprasVendidas = g.invertidoCompras * proporcionVendida;
+    const beneficioBrutoRealizado = g.importeVentas - costeComprasVendidas;
+    const impuestoRealizado = beneficioBrutoRealizado > 0 ? beneficioBrutoRealizado * impuestoPct : 0;
+    const beneficioNetoRealizado = beneficioBrutoRealizado - impuestoRealizado;
+
+    acc.gastosCompra += Number(g.gastosCompra || 0);
+    acc.gastosVenta += Number(g.gastosVenta || 0);
+    acc.beneficioBruto += beneficioBrutoRealizado;
+    acc.impuesto += impuestoRealizado;
+    acc.beneficioNeto += beneficioNetoRealizado;
+    return acc;
+  }, {
+    gastosCompra: 0,
+    gastosVenta: 0,
+    beneficioBruto: 0,
+    impuesto: 0,
+    beneficioNeto: 0
+  });
+}
+
 function renderAll(){
   renderDashboard();
   renderMovimientos();
@@ -371,6 +396,7 @@ function renderAll(){
 function renderDashboard(){
   const cartera = agruparCartera();
   let valorActual = 0, invertido = 0, beneficio = 0;
+  const realizados = calcularResultadosRealizados(cartera);
   cartera.forEach(g=>{
     const cot = getCotizacion(g.ticker);
     const va = cot ? cot.price * g.cantidadNeta : 0;
@@ -385,11 +411,12 @@ function renderDashboard(){
   el("dashBeneficio").className = beneficio >= 0 ? "good" : "bad";
   el("dashSeguimiento").textContent = getSeguimiento().length;
 
-  const html = cartera.length ? cartera.map(g=>{
+  const resumenPosiciones = cartera.length ? cartera.map(g=>{
     const cot = getCotizacion(g.ticker);
-    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 4)} acciones · Cotización: ${cot ? money(cot.price, db.ajustes.moneda) : "sin dato"}</p>`;
+    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${cot ? money(cot.price, db.ajustes.moneda) : "sin dato"}</p>`;
   }).join("") : `<p class="muted">Todavía no tienes cartera real. Añade una compra desde Movimientos.</p>`;
-  el("dashboardResumen").innerHTML = html;
+  const resumenRealizado = `<p><strong>Realizado (ya vendido y fuera de cartera):</strong> Bruto ${money(realizados.beneficioBruto, db.ajustes.moneda)} · Impuestos ${money(realizados.impuesto, db.ajustes.moneda)} · Neto ${money(realizados.beneficioNeto, db.ajustes.moneda)}</p>`;
+  el("dashboardResumen").innerHTML = resumenPosiciones + resumenRealizado;
 }
 
 function renderMovimientos(){
@@ -404,12 +431,15 @@ function renderMovimientos(){
   const seguimiento = rows.filter(m=>m.tipo==="SEGUIMIENTO").length;
   const importeCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((s,m)=>s + Number(m.total || (m.cantidad*m.precio+m.gastos) || 0),0);
   const importeVentas = rows.filter(m=>m.tipo==="VENTA").reduce((s,m)=>s + Number(m.total || (m.cantidad*m.precio-m.gastos) || 0),0);
+  const gastosCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((s,m)=>s + Number(m.gastos || 0),0);
+  const gastosVentas = rows.filter(m=>m.tipo==="VENTA").reduce((s,m)=>s + Number(m.gastos || 0),0);
 
   if(el("totalesMovimientos")){
     el("totalesMovimientos").innerHTML = `
       <span><strong>Movimientos:</strong> ${rows.length}</span>
       <span class="good"><strong>Compras:</strong> ${compras} · ${money(importeCompras, db.ajustes.moneda)}</span>
       <span class="bad"><strong>Ventas:</strong> ${ventas} · ${money(importeVentas, db.ajustes.moneda)}</span>
+      <span><strong>Gastos compras/ventas:</strong> ${money(gastosCompras, db.ajustes.moneda)} / ${money(gastosVentas, db.ajustes.moneda)}</span>
       <span class="warn"><strong>Seguimiento:</strong> ${seguimiento}</span>
     `;
   }
@@ -419,9 +449,9 @@ function renderMovimientos(){
       <td>${m.fecha || ""}</td>
       <td><span class="${m.tipo === "VENTA" ? "bad" : m.tipo === "COMPRA" ? "good" : "warn"}">${m.tipo}</span></td>
       <td>${m.nombre}<br><small class="muted">${m.ticker} · ${m.apiSymbol || "sin API"}</small></td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : num(m.cantidad, 4)}</td>
+      <td>${m.tipo === "SEGUIMIENTO" ? "-" : num(m.cantidad, 0)}</td>
       <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(m.precio, db.ajustes.moneda)}</td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(m.total || (m.cantidad*m.precio+m.gastos), db.ajustes.moneda)}</td>
+      <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(m.total || (m.cantidad*m.precio + (m.tipo === "VENTA" ? -m.gastos : m.gastos)), db.ajustes.moneda)}</td>
       <td>
         <button class="small-btn edit" onclick="editarMovimiento('${m.id}')">Editar</button>
         <button class="small-btn delete" onclick="borrarMovimiento('${m.id}')">Borrar</button>
@@ -442,6 +472,8 @@ function renderCartera(){
   let totalVendidas = 0;
   let totalInvertido = 0;
   let totalValorActual = 0;
+  let totalGastosCompra = 0;
+  let totalGastosVenta = 0;
 
   cartera.forEach(g=>{
     const cot = getCotizacion(g.ticker);
@@ -450,16 +482,19 @@ function renderCartera(){
     totalVendidas += Number(g.cantidadVendida || 0);
     totalInvertido += Number(g.invertidoNeto || 0);
     totalValorActual += cot ? cot.price * g.cantidadNeta : 0;
+    totalGastosCompra += Number(g.gastosCompra || 0);
+    totalGastosVenta += Number(g.gastosVenta || 0);
   });
 
   if(el("totalesCartera")){
     el("totalesCartera").innerHTML = `
       <span><strong>Valores:</strong> ${cartera.length}</span>
-      <span><strong>Acciones netas:</strong> ${num(totalAcciones,4)}</span>
-      <span><strong>Compradas:</strong> ${num(totalCompradas,4)}</span>
-      <span><strong>Vendidas:</strong> ${num(totalVendidas,4)}</span>
+      <span><strong>Acciones netas:</strong> ${num(totalAcciones,0)}</span>
+      <span><strong>Compradas:</strong> ${num(totalCompradas,0)}</span>
+      <span><strong>Vendidas:</strong> ${num(totalVendidas,0)}</span>
       <span><strong>Invertido neto:</strong> ${money(totalInvertido, db.ajustes.moneda)}</span>
       <span><strong>Valor actual:</strong> ${money(totalValorActual, db.ajustes.moneda)}</span>
+      <span><strong>Gastos compra/venta:</strong> ${money(totalGastosCompra, db.ajustes.moneda)} / ${money(totalGastosVenta, db.ajustes.moneda)}</span>
     `;
   }
 
@@ -468,9 +503,9 @@ function renderCartera(){
     const valorActual = cot ? cot.price * g.cantidadNeta : 0;
     return `<tr onclick="mostrarDetalleCartera('${g.ticker}')">
       <td><strong>${g.nombre}</strong><br><small class="muted">${g.ticker} · ${g.apiSymbol || "sin API"}</small></td>
-      <td>${num(g.cantidadNeta,4)}</td>
-      <td>${num(g.cantidadComprada,4)}</td>
-      <td>${num(g.cantidadVendida,4)}</td>
+      <td>${num(g.cantidadNeta,0)}</td>
+      <td>${num(g.cantidadComprada,0)}</td>
+      <td>${num(g.cantidadVendida,0)}</td>
       <td>${money(g.invertidoNeto, db.ajustes.moneda)}</td>
       <td>${money(g.precioMedio, db.ajustes.moneda)}</td>
       <td>${cot ? money(cot.price, db.ajustes.moneda) : "Sin cotización"}</td>
@@ -498,7 +533,7 @@ function mostrarDetalleCartera(ticker){
             <tr>
               <td>${m.fecha}</td>
               <td>${m.tipo}</td>
-              <td>${num(m.cantidad,4)}</td>
+              <td>${num(m.cantidad,0)}</td>
               <td>${money(m.precio, db.ajustes.moneda)}</td>
               <td>${money(m.gastos, db.ajustes.moneda)}</td>
               <td>${money(m.total || (m.cantidad*m.precio+m.gastos), db.ajustes.moneda)}</td>
@@ -625,6 +660,7 @@ async function actualizarTodasApi(esAutomatico = false){
 function renderComparativa(){
   const tbody = el("tablaComparativa");
   const cartera = agruparCartera().filter(g=>g.cantidadNeta > 0);
+  const realizados = calcularResultadosRealizados(agruparCartera());
 
   let totalInvertido = 0;
   let totalValorActual = 0;
@@ -651,7 +687,7 @@ function renderComparativa(){
 
     return `<tr>
       <td><strong>${g.nombre}</strong><br><small class="muted">${g.ticker}</small></td>
-      <td>${num(g.cantidadNeta,4)}</td>
+      <td>${num(g.cantidadNeta,0)}</td>
       <td>${money(g.invertidoNeto, db.ajustes.moneda)}</td>
       <td>${cot ? money(valorActual, db.ajustes.moneda) : "Sin cotización"}</td>
       <td>${cot ? money(gastosVenta, db.ajustes.moneda) : "-"}</td>
@@ -668,9 +704,10 @@ function renderComparativa(){
       <span><strong>Valores abiertos:</strong> ${cartera.length}</span>
       <span><strong>Invertido:</strong> ${money(totalInvertido, db.ajustes.moneda)}</span>
       <span><strong>Valor actual:</strong> ${money(totalValorActual, db.ajustes.moneda)}</span>
-      <span><strong>Gastos venta:</strong> ${money(totalGastosVenta, db.ajustes.moneda)}</span>
+      <span><strong>Gastos venta estimados:</strong> ${money(totalGastosVenta, db.ajustes.moneda)}</span>
       <span class="${totalBruto>=0?'good':'bad'}"><strong>Beneficio bruto:</strong> ${money(totalBruto, db.ajustes.moneda)}</span>
       <span class="${totalNeto>=0?'good':'bad'}"><strong>Beneficio neto:</strong> ${money(totalNeto, db.ajustes.moneda)} · ${num(totalRent,2)} %</span>
+      <span><strong>Realizado bruto/neto:</strong> ${money(realizados.beneficioBruto, db.ajustes.moneda)} / ${money(realizados.beneficioNeto, db.ajustes.moneda)}</span>
     `;
   }
 
