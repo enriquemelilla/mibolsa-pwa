@@ -40,12 +40,16 @@
             <strong id="dashValorCartera">0,00 €</strong>
           </article>
           <article class="card stat">
-            <span>Invertido neto</span>
+            <span>Invertido abierto</span>
             <strong id="dashInvertido">0,00 €</strong>
           </article>
           <article class="card stat">
-            <span>Beneficio neto estimado</span>
+            <span>Resultado latente neto</span>
             <strong id="dashBeneficio">0,00 €</strong>
+          </article>
+          <article class="card stat">
+            <span>Resultado real neto</span>
+            <strong id="dashRealizado">0,00 €</strong>
           </article>
           <article class="card stat">
             <span>Valores en seguimiento</span>
@@ -70,6 +74,7 @@
             <select id="movTipo">
               <option value="COMPRA">Compra</option>
               <option value="VENTA">Venta</option>
+              <option value="DIVIDENDO">Dividendo</option>
               <option value="SEGUIMIENTO">Seguimiento / solo cotización</option>
             </select>
 
@@ -94,27 +99,27 @@
             <div id="bloqueOperacion">
               <div class="grid two">
                 <div>
-                  <label>Cantidad acciones</label>
+                  <label id="labelMovCantidad">Cantidad acciones</label>
                   <input id="movCantidad" type="number" min="0" step="0.000001" placeholder="335">
                 </div>
                 <div>
-                  <label>Precio cotización operación</label>
+                  <label id="labelMovPrecio">Precio cotización operación</label>
                   <input id="movPrecio" type="number" min="0" step="0.000001" placeholder="18.48">
                 </div>
               </div>
 
               <div class="grid two">
                 <div>
-                  <label>Gastos operación</label>
+                  <label id="labelMovGastos">Gastos operación</label>
                   <input id="movGastos" type="number" min="0" step="0.01" placeholder="5.00">
                 </div>
                 <div>
-                  <label>Total operación</label>
+                  <label id="labelMovTotal">Total operación</label>
                   <input id="movTotal" type="number" min="0" step="0.01" placeholder="6007.11">
                 </div>
               </div>
 
-              <p class="hint">Puedes rellenar cantidad + precio + gastos, o cantidad + precio + total para calcular gastos.</p>
+              <p id="hintOperacion" class="hint">Puedes rellenar cantidad + precio + gastos, o cantidad + precio + total para calcular gastos.</p>
             </div>
 
             <div class="grid two">
@@ -158,8 +163,9 @@
                     <th>Tipo</th>
                     <th>Acción</th>
                     <th>Cant.</th>
-                    <th>Precio</th>
-                    <th>Total</th>
+                    <th>Precio / importe</th>
+                    <th>Ret./Gastos</th>
+                    <th>Total / neto</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -190,10 +196,12 @@
                   <th>Acciones netas</th>
                   <th>Compradas</th>
                   <th>Vendidas</th>
-                  <th>Invertido neto</th>
+                  <th>Invertido abierto</th>
                   <th>Precio medio</th>
                   <th>Última cotización</th>
                   <th>Valor actual</th>
+                  <th>Real</th>
+                  <th>Latente</th>
                 </tr>
               </thead>
               <tbody id="tablaCartera"></tbody>
@@ -245,6 +253,8 @@
                   <th>Exchange</th>
                   <th>Cotización manual/API</th>
                   <th>Última actualización</th>
+                  <th>Real</th>
+                  <th>Latente</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -259,7 +269,7 @@
           <div class="card-header">
             <div>
               <h2>Comparativa de cartera con última cotización</h2>
-              <p class="muted">Calcula beneficio bruto, gastos estimados de venta y beneficio neto aproximado.</p>
+              <p class="muted">Separa el beneficio/pérdida real de acciones vendidas y el latente de posiciones abiertas según cotización.</p>
             </div>
             <button class="btn secondary" type="button" onclick="togglePanel('panelComparativa')">Plegar / desplegar</button>
           </div>
@@ -271,12 +281,13 @@
                 <tr>
                   <th>Acción</th>
                   <th>Acciones</th>
-                  <th>Invertido neto</th>
+                  <th>Invertido abierto</th>
                   <th>Valor actual</th>
                   <th>Gastos venta estimados</th>
-                  <th>Beneficio bruto</th>
-                  <th>Beneficio neto</th>
-                  <th>Rentabilidad</th>
+                  <th>Real</th>
+                  <th>Latente bruto</th>
+                  <th>Latente neto</th>
+                  <th>Rentabilidad latente</th>
                 </tr>
               </thead>
               <tbody id="tablaComparativa"></tbody>
