@@ -327,40 +327,104 @@ function setCotizacion(ticker, price, source="manual"){
   saveDB(db);
 }
 
+function compararMovimientosCronologicos(a, b){
+  const fechaA = a.fecha || "";
+  const fechaB = b.fecha || "";
+  if(fechaA !== fechaB) return fechaA.localeCompare(fechaB);
+
+  const creadoA = a.createdAt || "";
+  const creadoB = b.createdAt || "";
+  if(creadoA !== creadoB) return creadoA.localeCompare(creadoB);
+
+  return (a.id || "").localeCompare(b.id || "");
+}
+
+function crearGrupoCartera(m){
+  return {
+    ticker:m.ticker,
+    nombre:m.nombre,
+    apiSymbol:m.apiSymbol,
+    exchange:m.exchange,
+    cantidadComprada:0,
+    cantidadVendida:0,
+    invertidoCompras:0,
+    importeVentas:0,
+    gastosCompra:0,
+    gastosVenta:0,
+    costeAccionesVendidas:0,
+    beneficioVentasBruto:0,
+    dividendosBrutos:0,
+    retencionesDividendos:0,
+    dividendosNetos:0,
+    movimientos:[],
+    lotesAbiertos:[]
+  };
+}
+
+function registrarCompraEnCartera(g, m, gastos){
+  const cantidad = Number(m.cantidad || 0);
+  const costeTotal = cantidad * Number(m.precio || 0) + gastos;
+
+  g.cantidadComprada += cantidad;
+  g.invertidoCompras += costeTotal;
+  g.gastosCompra += gastos;
+
+  if(cantidad > 0){
+    g.lotesAbiertos.push({
+      cantidad,
+      costeTotal,
+      precio: Number(m.precio || 0),
+      gastos
+    });
+  }
+}
+
+function registrarVentaEnCartera(g, m, gastos){
+  let cantidadPendiente = Number(m.cantidad || 0);
+  let costeVenta = 0;
+
+  g.cantidadVendida += cantidadPendiente;
+  g.importeVentas += cantidadPendiente * Number(m.precio || 0) - gastos;
+  g.gastosVenta += gastos;
+
+  while(cantidadPendiente > 0 && g.lotesAbiertos.length){
+    const lote = g.lotesAbiertos[0];
+    const cantidadConsumida = Math.min(cantidadPendiente, lote.cantidad);
+    const costeProporcional = lote.costeTotal * (cantidadConsumida / lote.cantidad);
+
+    costeVenta += costeProporcional;
+    lote.cantidad -= cantidadConsumida;
+    lote.costeTotal -= costeProporcional;
+    cantidadPendiente -= cantidadConsumida;
+
+    if(lote.cantidad <= 0.00000001){
+      g.lotesAbiertos.shift();
+    }
+  }
+
+  g.costeAccionesVendidas += costeVenta;
+  g.beneficioVentasBruto += getTotalMovimiento(m) - costeVenta;
+}
+
 function agruparCartera(movimientos = db.movimientos){
   const map = {};
-  movimientos.forEach(m=>{
-    if(m.tipo === "SEGUIMIENTO") return;
+  const movimientosOrdenados = [...movimientos]
+    .filter(m=>m.tipo !== "SEGUIMIENTO")
+    .sort(compararMovimientosCronologicos);
+
+  movimientosOrdenados.forEach(m=>{
     if(!map[m.ticker]){
-      map[m.ticker] = {
-        ticker:m.ticker,
-        nombre:m.nombre,
-        apiSymbol:m.apiSymbol,
-        exchange:m.exchange,
-        cantidadComprada:0,
-        cantidadVendida:0,
-        invertidoCompras:0,
-        importeVentas:0,
-        gastosCompra:0,
-        gastosVenta:0,
-        dividendosBrutos:0,
-        retencionesDividendos:0,
-        dividendosNetos:0,
-        movimientos:[]
-      };
+      map[m.ticker] = crearGrupoCartera(m);
     }
     const g = map[m.ticker];
     const gastos = getGastosOperacion(m.gastos);
     g.movimientos.push(m);
+
     if(m.tipo === "COMPRA"){
-      g.cantidadComprada += m.cantidad;
-      g.invertidoCompras += m.cantidad * m.precio + gastos;
-      g.gastosCompra += gastos;
+      registrarCompraEnCartera(g, m, gastos);
     }
     if(m.tipo === "VENTA"){
-      g.cantidadVendida += m.cantidad;
-      g.importeVentas += m.cantidad * m.precio - gastos;
-      g.gastosVenta += gastos;
+      registrarVentaEnCartera(g, m, gastos);
     }
     if(m.tipo === "DIVIDENDO"){
       g.dividendosBrutos += Number(m.precio || 0);
@@ -373,12 +437,9 @@ function agruparCartera(movimientos = db.movimientos){
   });
 
   return Object.values(map).map(g=>{
-    const cantidadVendidaCosteada = Math.min(g.cantidadVendida, g.cantidadComprada);
     g.cantidadNeta = g.cantidadComprada - g.cantidadVendida;
+    g.invertidoNeto = g.cantidadNeta > 0 ? g.lotesAbiertos.reduce((sum, lote)=>sum + lote.costeTotal, 0) : 0;
     g.precioMedioCompra = g.cantidadComprada > 0 ? g.invertidoCompras / g.cantidadComprada : 0;
-    g.costeAccionesVendidas = g.precioMedioCompra * cantidadVendidaCosteada;
-    g.beneficioVentasBruto = g.importeVentas - g.costeAccionesVendidas;
-    g.invertidoNeto = g.cantidadNeta > 0 ? g.precioMedioCompra * g.cantidadNeta : 0;
     g.precioMedio = g.cantidadNeta > 0 ? g.invertidoNeto / g.cantidadNeta : 0;
     return g;
   }).filter(g=>g.cantidadNeta !== 0 || g.movimientos.length > 0);
@@ -537,7 +598,7 @@ function renderDashboard(){
     const latente = calcularResultadoLatente(g);
     return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)}</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span></p>`;
   }).join("") : `<p class="muted">Todavía no tienes cartera real. Añade una compra desde Movimientos.</p>`;
-  const resumenBeneficios = `<p><strong>Beneficio/pérdida real:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</p>
+  const resumenBeneficios = `<p><strong>Beneficio/pérdida real FIFO:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</p>
     <p><strong>Beneficio/pérdida latente:</strong> Bruto ${money(beneficios.latenteBruto, db.ajustes.moneda)} · Gastos venta estimados ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)} · Impuestos ${money(beneficios.impuestoLatente, db.ajustes.moneda)} · Neto ${money(beneficios.latenteNeto, db.ajustes.moneda)}</p>`;
   el("dashboardResumen").innerHTML = resumenPosiciones + resumenBeneficios;
 }
@@ -662,7 +723,7 @@ function mostrarDetalleCartera(ticker){
   panel.classList.remove("hidden");
   panel.innerHTML = `
     <h3>Detalle de ${g.nombre} (${g.ticker})</h3>
-    <p><strong>Beneficio/pérdida real:</strong> <span class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</span> · ventas cerradas y dividendos netos.</p>
+    <p><strong>Beneficio/pérdida real:</strong> <span class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</span> · ventas cerradas con coste FIFO fijo y dividendos netos.</p>
     <p><strong>Beneficio/pérdida latente:</strong> <span class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span> · acciones abiertas según cotización actual.</p>
     <div class="table-wrap">
       <table>
@@ -922,7 +983,7 @@ function generarDatosParaIA(){
       dividendos_netos: Number(beneficios.dividendosNetos.toFixed(4)),
       latente_bruto: Number(beneficios.latenteBruto.toFixed(4)),
       latente_neto: Number(beneficios.latenteNeto.toFixed(4)),
-      nota: "Real = ventas cerradas y dividendos netos. Latente = posiciones abiertas según última cotización."
+      nota: "Real = ventas cerradas con coste FIFO fijo y dividendos netos. Latente = posiciones abiertas según última cotización."
     },
     cartera,
     seguimiento,
