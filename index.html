@@ -34,31 +34,36 @@
 
     <main>
       <section id="view-dashboard" class="view active">
-        <div class="grid cards-4">
-          <article class="card stat">
-            <span>Total cartera</span>
-            <strong id="dashValorCartera">0,00 €</strong>
-          </article>
-          <article class="card stat">
-            <span>Invertido abierto</span>
-            <strong id="dashInvertido">0,00 €</strong>
-          </article>
-          <article class="card stat">
-            <span>Resultado latente neto</span>
-            <strong id="dashBeneficio">0,00 €</strong>
-          </article>
-          <article class="card stat">
-            <span>Resultado real neto</span>
-            <strong id="dashRealizado">0,00 €</strong>
-          </article>
-          <article class="card stat">
-            <span>Valores en seguimiento</span>
-            <strong id="dashSeguimiento">0</strong>
-          </article>
+        <div class="card dashboard-stats-card">
+          <div class="grid dashboard-stats-grid">
+            <article class="stat">
+              <span>Total cartera</span>
+              <strong id="dashValorCartera">0,00 €</strong>
+            </article>
+            <article class="stat">
+              <span>Invertido abierto</span>
+              <strong id="dashInvertido">0,00 €</strong>
+            </article>
+            <article class="stat">
+              <span>Resultado latente neto</span>
+              <strong id="dashBeneficio">0,00 €</strong>
+            </article>
+            <article class="stat">
+              <span>Resultado real neto</span>
+              <strong id="dashRealizado">0,00 €</strong>
+            </article>
+            <article class="stat">
+              <span>Valores en seguimiento</span>
+              <strong id="dashSeguimiento">0</strong>
+            </article>
+          </div>
         </div>
 
         <div class="card">
-          <h2>Vista rápida</h2>
+          <div class="card-title-row">
+            <h2>Vista rápida</h2>
+            <span id="dashCotizacionesActualizadas" class="quote-updated muted">Cotizaciones sin actualizar</span>
+          </div>
           <p class="muted">Aquí verás un resumen de tu cartera real y de los valores que solo quieres vigilar.</p>
           <div id="dashboardResumen"></div>
         </div>
@@ -67,7 +72,11 @@
       <section id="view-movimientos" class="view">
         <div class="layout-2">
           <form id="formMovimiento" class="card form-card">
-            <h2 id="formTitulo">Nuevo movimiento</h2>
+            <div class="card-header compact-header">
+              <h2 id="formTitulo">Nuevo movimiento</h2>
+              <button class="icon-toggle" type="button" aria-expanded="false" aria-controls="panelNuevoMovimiento" onclick="togglePanelWithButton('panelNuevoMovimiento', this)">+</button>
+            </div>
+            <div id="panelNuevoMovimiento" class="collapsible closed">
             <input type="hidden" id="movId">
 
             <label>Tipo</label>
@@ -140,6 +149,7 @@
               <button class="btn primary" type="submit">Guardar</button>
               <button class="btn secondary" type="button" id="btnLimpiarForm">Limpiar</button>
             </div>
+            </div>
           </form>
 
           <div class="card">
@@ -150,28 +160,12 @@
               </div>
               <div class="header-actions">
                 <input id="buscarMovimiento" class="search" placeholder="Buscar acción, ticker o tipo...">
-                <button class="btn secondary" type="button" onclick="togglePanel('panelMovimientos')">Plegar / desplegar</button>
+                <button class="icon-toggle" type="button" aria-expanded="false" aria-controls="panelMovimientos" onclick="togglePanelWithButton('panelMovimientos', this)">+</button>
               </div>
             </div>
-            <div id="totalesMovimientos" class="totals-bar"></div>
-            <div id="panelMovimientos" class="collapsible open">
-            <div class="table-wrap">
-              <table class="responsive-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Acción</th>
-                    <th>Cant.</th>
-                    <th>Precio / importe</th>
-                    <th>Ret./Gastos</th>
-                    <th>Total / neto</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="tablaMovimientos"></tbody>
-              </table>
-            </div>
+            <div id="panelMovimientos" class="collapsible closed">
+              <div id="totalesMovimientos" class="totals-bar"></div>
+              <div id="tablaMovimientos" class="movement-list"></div>
             </div>
           </div>
         </div>
@@ -184,30 +178,11 @@
               <h2>Cartera real agrupada</h2>
               <p class="muted">Las compras suman acciones y las ventas restan acciones.</p>
             </div>
-            <button class="btn secondary" type="button" onclick="togglePanel('panelCartera')">Plegar / desplegar</button>
+            <button class="icon-toggle" type="button" aria-expanded="false" aria-controls="panelCartera" onclick="togglePanelWithButton('panelCartera', this)">+</button>
           </div>
-          <div id="totalesCartera" class="totals-bar"></div>
-          <div id="panelCartera" class="collapsible open">
-          <div class="table-wrap">
-            <table class="responsive-table">
-              <thead>
-                <tr>
-                  <th>Acción</th>
-                  <th>Acciones netas</th>
-                  <th>Compradas</th>
-                  <th>Vendidas</th>
-                  <th>Invertido abierto</th>
-                  <th>Precio medio</th>
-                  <th>Última cotización</th>
-                  <th>Valor actual</th>
-                  <th>Real</th>
-                  <th>Latente</th>
-                </tr>
-              </thead>
-              <tbody id="tablaCartera"></tbody>
-            </table>
-          </div>
-          <div id="detalleCartera" class="details-panel hidden"></div>
+          <div id="panelCartera" class="collapsible closed">
+            <div id="totalesCartera" class="totals-bar"></div>
+            <div id="tablaCartera" class="portfolio-list"></div>
           </div>
         </div>
       </section>
