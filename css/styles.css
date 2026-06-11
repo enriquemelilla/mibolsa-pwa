@@ -641,3 +641,141 @@ button,
   gap:6px;
   margin-top:8px;
 }
+
+/* Tarjetas plegables de resumen, movimientos y cartera */
+.dashboard-stats-card{
+  padding:14px;
+}
+
+.dashboard-stats-grid{
+  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.dashboard-stats-grid .stat{
+  padding:12px;
+  border:1px solid rgba(51,65,85,.75);
+  border-radius:14px;
+  background:#0f172a;
+}
+
+.card-title-row,
+.compact-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.card-title-row h2,
+.compact-header h2{
+  margin:0;
+}
+
+.quote-updated{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 10px;
+  border:1px solid rgba(51,65,85,.75);
+  border-radius:999px;
+  background:#0f172a;
+  font-size:13px;
+  white-space:nowrap;
+}
+
+.icon-toggle{
+  width:44px;
+  min-width:44px;
+  height:44px;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:#0f172a;
+  color:var(--primary);
+  cursor:pointer;
+  font-size:28px;
+  font-weight:800;
+  line-height:1;
+}
+
+.icon-toggle:hover{
+  background:#162033;
+}
+
+.movement-list,
+.portfolio-list{
+  display:grid;
+  gap:12px;
+}
+
+.item-card{
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#0f172a;
+  overflow:hidden;
+}
+
+.item-card-header{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:12px;
+}
+
+.movement-summary-main,
+.portfolio-summary-main{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(4, minmax(120px, 1fr));
+  gap:8px 12px;
+  align-items:center;
+}
+
+.portfolio-summary-main{
+  grid-template-columns:2fr 1fr 1fr;
+}
+
+.item-card-body{
+  padding:0 12px 12px 68px;
+}
+
+.detail-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));
+  gap:8px;
+  margin-top:2px;
+}
+
+.detail-grid span{
+  padding:8px;
+  border:1px solid rgba(51,65,85,.75);
+  border-radius:10px;
+  background:#162033;
+}
+
+@media(max-width:900px){
+  .card-title-row{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .quote-updated{
+    width:100%;
+    justify-content:center;
+    white-space:normal;
+  }
+
+  .movement-summary-main,
+  .portfolio-summary-main{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .item-card-body{
+    padding-left:12px;
+  }
+}
+
+@media(max-width:520px){
+  .movement-summary-main,
+  .portfolio-summary-main{
+    grid-template-columns:1fr;
+  }
+}

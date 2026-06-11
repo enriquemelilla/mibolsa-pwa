@@ -24,6 +24,41 @@ function togglePanel(id){
   panel.classList.toggle("open");
 }
 
+function setPanelState(id, isOpen){
+  const panel = el(id);
+  if(!panel) return;
+  panel.classList.toggle("open", isOpen);
+  panel.classList.toggle("closed", !isOpen);
+  const button = document.querySelector(`[aria-controls="${id}"]`);
+  if(button){
+    button.textContent = isOpen ? "−" : "+";
+    button.setAttribute("aria-expanded", String(isOpen));
+  }
+}
+
+function togglePanelWithButton(id, button){
+  const panel = el(id);
+  if(!panel) return;
+  const isOpen = !panel.classList.contains("open");
+  setPanelState(id, isOpen);
+  if(button){
+    button.textContent = isOpen ? "−" : "+";
+    button.setAttribute("aria-expanded", String(isOpen));
+  }
+}
+
+function formatFechaHora(value){
+  return value ? new Date(value).toLocaleString("es-ES") : "-";
+}
+
+function getUltimaActualizacionCotizaciones(){
+  const fechas = Object.values(db.cotizaciones || {})
+    .map(c=>c && c.updatedAt ? new Date(c.updatedAt).getTime() : 0)
+    .filter(Boolean);
+  if(!fechas.length) return null;
+  return new Date(Math.max(...fechas)).toISOString();
+}
+
 
 function marcarTablasResponsive(){
   document.querySelectorAll(".responsive-table").forEach(table=>{
@@ -303,6 +338,7 @@ function editarMovimiento(id){
   el("movNotas").value = m.notas || "";
   toggleTipoMovimiento();
   document.querySelector('[data-view="movimientos"]').click();
+  setPanelState("panelNuevoMovimiento", true);
 }
 
 function borrarMovimiento(id){
@@ -592,11 +628,17 @@ function renderDashboard(){
   el("dashRealizado").textContent = money(beneficios.realizadoNeto, db.ajustes.moneda);
   el("dashRealizado").className = beneficios.realizadoNeto >= 0 ? "good" : "bad";
   el("dashSeguimiento").textContent = getSeguimiento().length;
+  const ultimaActualizacion = getUltimaActualizacionCotizaciones();
+  if(el("dashCotizacionesActualizadas")){
+    el("dashCotizacionesActualizadas").textContent = ultimaActualizacion
+      ? `Cotizaciones actualizadas: ${formatFechaHora(ultimaActualizacion)}`
+      : "Cotizaciones sin actualizar";
+  }
 
   const resumenPosiciones = cartera.length ? cartera.map(g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
-    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)}</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span></p>`;
+    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)}</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span></p>`;
   }).join("") : `<p class="muted">Todavía no tienes cartera real. Añade una compra desde Movimientos.</p>`;
   const resumenBeneficios = `<p><strong>Beneficio/pérdida real FIFO:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</p>
     <p><strong>Beneficio/pérdida latente:</strong> Bruto ${money(beneficios.latenteBruto, db.ajustes.moneda)} · Gastos venta estimados ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)} · Impuestos ${money(beneficios.impuestoLatente, db.ajustes.moneda)} · Neto ${money(beneficios.latenteNeto, db.ajustes.moneda)}</p>`;
@@ -604,7 +646,7 @@ function renderDashboard(){
 }
 
 function renderMovimientos(){
-  const tbody = el("tablaMovimientos");
+  const contenedor = el("tablaMovimientos");
   const q = (el("buscarMovimiento").value || "").toLowerCase();
   const rows = db.movimientos
     .filter(m => !q || `${m.fecha} ${m.tipo} ${m.nombre} ${m.ticker}`.toLowerCase().includes(q))
@@ -614,12 +656,12 @@ function renderMovimientos(){
   const ventas = rows.filter(m=>m.tipo==="VENTA").length;
   const dividendos = rows.filter(m=>m.tipo==="DIVIDENDO").length;
   const seguimiento = rows.filter(m=>m.tipo==="SEGUIMIENTO").length;
-  const importeCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((s,m)=>s + getTotalMovimiento(m),0);
-  const importeVentas = rows.filter(m=>m.tipo==="VENTA").reduce((s,m)=>s + getTotalMovimiento(m),0);
-  const importeDividendos = rows.filter(m=>m.tipo==="DIVIDENDO").reduce((s,m)=>s + getTotalMovimiento(m),0);
-  const gastosCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((s,m)=>s + getGastosOperacion(m.gastos),0);
-  const gastosVentas = rows.filter(m=>m.tipo==="VENTA").reduce((s,m)=>s + getGastosOperacion(m.gastos),0);
-  const beneficios = calcularBeneficios(agruparCartera(rows));
+  const importeCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((sum,m)=>sum + getTotalMovimiento(m),0);
+  const importeVentas = rows.filter(m=>m.tipo==="VENTA").reduce((sum,m)=>sum + getTotalMovimiento(m),0);
+  const importeDividendos = rows.filter(m=>m.tipo==="DIVIDENDO").reduce((sum,m)=>sum + getTotalMovimiento(m),0);
+  const gastosCompras = rows.filter(m=>m.tipo==="COMPRA").reduce((sum,m)=>sum + getGastosOperacion(m.gastos),0);
+  const gastosVentas = rows.filter(m=>m.tipo==="VENTA").reduce((sum,m)=>sum + getGastosOperacion(m.gastos),0);
+  const beneficios = calcularBeneficios(agruparCartera());
 
   if(el("totalesMovimientos")){
     el("totalesMovimientos").innerHTML = `
@@ -634,28 +676,45 @@ function renderMovimientos(){
     `;
   }
 
-  tbody.innerHTML = rows.map(m=>`
-    <tr>
-      <td>${m.fecha || ""}</td>
-      <td><span class="${m.tipo === "VENTA" ? "bad" : ["COMPRA", "DIVIDENDO"].includes(m.tipo) ? "good" : "warn"}">${m.tipo}</span></td>
-      <td>${m.nombre}<br><small class="muted">${m.ticker} · ${m.apiSymbol || "sin API"}</small></td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : num(m.cantidad, 0)}</td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(m.precio, db.ajustes.moneda)}</td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(getGastosOperacion(m.gastos), db.ajustes.moneda)}</td>
-      <td>${m.tipo === "SEGUIMIENTO" ? "-" : money(getTotalMovimiento(m), db.ajustes.moneda)}</td>
-      <td>
-        <button class="small-btn edit" onclick="editarMovimiento('${m.id}')">Editar</button>
-        <button class="small-btn delete" onclick="borrarMovimiento('${m.id}')">Borrar</button>
-      </td>
-    </tr>`).join("");
+  contenedor.innerHTML = rows.map(m=>{
+    const panelId = `movimiento-${m.id}`;
+    const tipoClass = m.tipo === "VENTA" ? "bad" : ["COMPRA", "DIVIDENDO"].includes(m.tipo) ? "good" : "warn";
+    return `
+      <article class="item-card movement-card">
+        <div class="item-card-header movement-summary">
+          <button class="icon-toggle" type="button" aria-expanded="false" aria-controls="${panelId}" onclick="togglePanelWithButton('${panelId}', this)">+</button>
+          <div class="movement-summary-main">
+            <span><strong>${m.fecha || "Sin fecha"}</strong></span>
+            <span class="${tipoClass}">${m.tipo}</span>
+            <span><strong>${m.nombre}</strong> <small class="muted">${m.ticker}</small></span>
+            <span>${m.tipo === "SEGUIMIENTO" ? "-" : num(m.cantidad, 0)} acciones</span>
+          </div>
+        </div>
+        <div id="${panelId}" class="collapsible closed item-card-body">
+          <div class="detail-grid">
+            <span><strong>Símbolo API:</strong> ${m.apiSymbol || "sin API"}</span>
+            <span><strong>Exchange:</strong> ${m.exchange || "-"}</span>
+            <span><strong>Precio / importe:</strong> ${m.tipo === "SEGUIMIENTO" ? "-" : money(m.precio, db.ajustes.moneda)}</span>
+            <span><strong>Ret./Gastos:</strong> ${m.tipo === "SEGUIMIENTO" ? "-" : money(getGastosOperacion(m.gastos), db.ajustes.moneda)}</span>
+            <span><strong>Total / neto:</strong> ${m.tipo === "SEGUIMIENTO" ? "-" : money(getTotalMovimiento(m), db.ajustes.moneda)}</span>
+            <span><strong>Mercado / nota:</strong> ${m.mercado || "-"}</span>
+          </div>
+          ${m.notas ? `<p class="muted"><strong>Notas:</strong> ${m.notas}</p>` : ""}
+          <div class="actions">
+            <button class="small-btn edit" onclick="editarMovimiento('${m.id}')">Editar</button>
+            <button class="small-btn delete" onclick="borrarMovimiento('${m.id}')">Borrar</button>
+          </div>
+        </div>
+      </article>`;
+  }).join("");
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="8" class="muted">No hay movimientos.</td></tr>`;
+    contenedor.innerHTML = `<p class="muted placeholder">No hay movimientos.</p>`;
   }
 }
 
 function renderCartera(){
-  const tbody = el("tablaCartera");
+  const contenedor = el("tablaCartera");
   const cartera = agruparCartera();
 
   let totalAcciones = 0;
@@ -692,25 +751,55 @@ function renderCartera(){
     `;
   }
 
-  tbody.innerHTML = cartera.map(g=>{
+  contenedor.innerHTML = cartera.map(g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
-    return `<tr onclick="mostrarDetalleCartera('${g.ticker}')">
-      <td><strong>${g.nombre}</strong><br><small class="muted">${g.ticker} · ${g.apiSymbol || "sin API"}</small></td>
-      <td>${num(g.cantidadNeta,0)}</td>
-      <td>${num(g.cantidadComprada,0)}</td>
-      <td>${num(g.cantidadVendida,0)}</td>
-      <td>${money(g.invertidoNeto, db.ajustes.moneda)}</td>
-      <td>${money(g.precioMedio, db.ajustes.moneda)}</td>
-      <td>${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "Sin cotización"}</td>
-      <td>${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"}</td>
-      <td class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</td>
-      <td class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) : "-"}</td>
-    </tr>`;
+    const panelId = `cartera-${g.ticker}`;
+    return `
+      <article class="item-card portfolio-card">
+        <div class="item-card-header portfolio-summary">
+          <button class="icon-toggle" type="button" aria-expanded="false" aria-controls="${panelId}" onclick="togglePanelWithButton('${panelId}', this)">+</button>
+          <div class="portfolio-summary-main">
+            <span><strong>${g.nombre}</strong> <small class="muted">${g.ticker}</small></span>
+            <span><strong>Acciones netas:</strong> ${num(g.cantidadNeta,0)}</span>
+            <span><strong>Valor actual:</strong> ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "Sin cotización"}</span>
+          </div>
+        </div>
+        <div id="${panelId}" class="collapsible closed item-card-body">
+          <div class="detail-grid">
+            <span><strong>Símbolo API:</strong> ${g.apiSymbol || "sin API"}</span>
+            <span><strong>Compradas:</strong> ${num(g.cantidadComprada,0)}</span>
+            <span><strong>Vendidas:</strong> ${num(g.cantidadVendida,0)}</span>
+            <span><strong>Invertido abierto:</strong> ${money(g.invertidoNeto, db.ajustes.moneda)}</span>
+            <span><strong>Precio medio:</strong> ${money(g.precioMedio, db.ajustes.moneda)}</span>
+            <span><strong>Última cotización:</strong> ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "Sin cotización"}</span>
+            <span class="${real.neto>=0?'good':'bad'}"><strong>Real:</strong> ${money(real.neto, db.ajustes.moneda)}</span>
+            <span class="${latente.neto>=0?'good':'bad'}"><strong>Latente:</strong> ${latente.cot ? money(latente.neto, db.ajustes.moneda) : "-"}</span>
+          </div>
+          <h3>Movimientos</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Precio / importe</th><th>Ret./Gastos</th><th>Total / neto</th></tr></thead>
+              <tbody>
+                ${g.movimientos.map(m=>`
+                  <tr>
+                    <td>${m.fecha}</td>
+                    <td>${m.tipo}</td>
+                    <td>${num(m.cantidad,0)}</td>
+                    <td>${money(m.precio, db.ajustes.moneda)}</td>
+                    <td>${money(getGastosOperacion(m.gastos), db.ajustes.moneda)}</td>
+                    <td>${money(getTotalMovimiento(m), db.ajustes.moneda)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>`;
   }).join("");
 
   if(!cartera.length){
-    tbody.innerHTML = `<tr><td colspan="10" class="muted">No hay posiciones reales.</td></tr>`;
+    contenedor.innerHTML = `<p class="muted placeholder">No hay posiciones reales.</p>`;
   }
 }
 
@@ -718,6 +807,7 @@ function mostrarDetalleCartera(ticker){
   const g = agruparCartera().find(x=>x.ticker === ticker);
   if(!g) return;
   const panel = el("detalleCartera");
+  if(!panel) return;
   const real = calcularResultadoReal(g);
   const latente = calcularResultadoLatente(g);
   panel.classList.remove("hidden");
@@ -1361,3 +1451,5 @@ window.editarMovimiento = editarMovimiento;
 window.borrarMovimiento = borrarMovimiento;
 window.mostrarDetalleCartera = mostrarDetalleCartera;
 window.actualizarUnaApi = actualizarUnaApi;
+
+window.togglePanelWithButton = togglePanelWithButton;
