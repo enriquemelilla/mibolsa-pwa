@@ -392,9 +392,31 @@ function crearGrupoCartera(m){
     dividendosBrutos:0,
     retencionesDividendos:0,
     dividendosNetos:0,
+    capitalRealUsado:0,
+    capitalDiasReal:0,
     movimientos:[],
     lotesAbiertos:[]
   };
+}
+
+function diasEntreFechas(inicio, fin){
+  const tInicio = new Date(inicio || today()).getTime();
+  const tFin = new Date(fin || today()).getTime();
+  if(!Number.isFinite(tInicio) || !Number.isFinite(tFin)) return 1;
+  return Math.max(Math.ceil((tFin - tInicio) / 86400000), 1);
+}
+
+function crearMetricasInteres(beneficio, capital, capitalDias){
+  const capitalUsado = Number(capital || 0);
+  const dias = capitalUsado > 0 ? Math.max(Number(capitalDias || 0) / capitalUsado, 1) : 0;
+  const actualPct = capitalUsado > 0 ? (Number(beneficio || 0) / capitalUsado) * 100 : 0;
+  const anualPct = dias > 0 ? actualPct * (365 / dias) : 0;
+  return { generado: Number(beneficio || 0), capitalUsado, dias, actualPct, anualPct };
+}
+
+function formatearInteres(metricas){
+  if(!metricas || !metricas.capitalUsado) return "Generado - · interés actual - · anual - · días - · capital -";
+  return `Generado ${money(metricas.generado, db.ajustes.moneda)} · interés actual ${num(metricas.actualPct,2)} % · anual ${num(metricas.anualPct,2)} % · ${num(metricas.dias,0)} días · capital ${money(metricas.capitalUsado, db.ajustes.moneda)}`;
 }
 
 function registrarCompraEnCartera(g, m, gastos){
@@ -410,7 +432,8 @@ function registrarCompraEnCartera(g, m, gastos){
       cantidad,
       costeTotal,
       precio: Number(m.precio || 0),
-      gastos
+      gastos,
+      fecha: m.fecha || today()
     });
   }
 }
@@ -427,6 +450,10 @@ function registrarVentaEnCartera(g, m, gastos){
     const lote = g.lotesAbiertos[0];
     const cantidadConsumida = Math.min(cantidadPendiente, lote.cantidad);
     const costeProporcional = lote.costeTotal * (cantidadConsumida / lote.cantidad);
+
+    const dias = diasEntreFechas(lote.fecha, m.fecha);
+    g.capitalRealUsado += costeProporcional;
+    g.capitalDiasReal += costeProporcional * dias;
 
     costeVenta += costeProporcional;
     lote.cantidad -= cantidadConsumida;
@@ -463,6 +490,17 @@ function agruparCartera(movimientos = db.movimientos){
       registrarVentaEnCartera(g, m, gastos);
     }
     if(m.tipo === "DIVIDENDO"){
+      const cantidadDividendo = Number(m.cantidad || 0);
+      let cantidadPendiente = cantidadDividendo;
+      g.lotesAbiertos.forEach(lote=>{
+        if(cantidadPendiente <= 0) return;
+        const cantidadUsada = Math.min(cantidadPendiente, lote.cantidad);
+        const costeProporcional = lote.costeTotal * (cantidadUsada / lote.cantidad);
+        const dias = diasEntreFechas(lote.fecha, m.fecha);
+        g.capitalRealUsado += costeProporcional;
+        g.capitalDiasReal += costeProporcional * dias;
+        cantidadPendiente -= cantidadUsada;
+      });
       g.dividendosBrutos += Number(m.precio || 0);
       g.retencionesDividendos += gastos;
       g.dividendosNetos += getTotalMovimiento(m);
@@ -528,6 +566,7 @@ function calcularResultadoReal(g){
   const bruto = beneficioVentasBruto + dividendosBrutos;
   const impuestosRetenciones = impuestoVentas + retencionesDividendos;
   const neto = beneficioVentasBruto - impuestoVentas + dividendosNetos;
+  const interes = crearMetricasInteres(neto, g.capitalRealUsado, g.capitalDiasReal);
   return {
     beneficioVentasBruto,
     dividendosBrutos,
@@ -536,7 +575,8 @@ function calcularResultadoReal(g){
     impuestoVentas,
     impuestosRetenciones,
     bruto,
-    neto
+    neto,
+    interes
   };
 }
 
@@ -547,12 +587,14 @@ function calcularResultadoLatente(g){
   const bruto = cot && g.cantidadNeta > 0 ? valorActual - g.invertidoNeto : 0;
   const impuesto = bruto > 0 ? bruto * (Number(db.ajustes.impuestoPct || 0) / 100) : 0;
   const neto = cot && g.cantidadNeta > 0 ? bruto - gastosVenta - impuesto : 0;
-  const rentabilidad = g.invertidoNeto ? (neto / g.invertidoNeto) * 100 : 0;
-  return { cot, valorActual, gastosVenta, bruto, impuesto, neto, rentabilidad };
+  const capitalDias = (g.lotesAbiertos || []).reduce((sum, lote)=>sum + Number(lote.costeTotal || 0) * diasEntreFechas(lote.fecha, today()), 0);
+  const interes = crearMetricasInteres(neto, g.invertidoNeto, capitalDias);
+  const rentabilidad = interes.actualPct;
+  return { cot, valorActual, gastosVenta, bruto, impuesto, neto, rentabilidad, interes };
 }
 
 function calcularBeneficios(cartera){
-  return cartera.reduce((acc, g)=>{
+  const beneficios = cartera.reduce((acc, g)=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
 
@@ -564,6 +606,8 @@ function calcularBeneficios(cartera){
     acc.realizadoBruto += real.bruto;
     acc.impuestoRealizado += real.impuestosRetenciones;
     acc.realizadoNeto += real.neto;
+    acc.capitalRealUsado += real.interes.capitalUsado;
+    acc.capitalDiasReal += real.interes.capitalUsado * real.interes.dias;
     if(g.cantidadNeta > 0){
       acc.invertidoAbierto += Number(g.invertidoNeto || 0);
     }
@@ -574,6 +618,7 @@ function calcularBeneficios(cartera){
       acc.latenteBruto += latente.bruto;
       acc.impuestoLatente += latente.impuesto;
       acc.latenteNeto += latente.neto;
+      acc.capitalDiasLatente += latente.interes.capitalUsado * latente.interes.dias;
     }
     return acc;
   }, {
@@ -585,13 +630,19 @@ function calcularBeneficios(cartera){
     realizadoBruto: 0,
     impuestoRealizado: 0,
     realizadoNeto: 0,
+    capitalRealUsado: 0,
+    capitalDiasReal: 0,
     invertidoAbierto: 0,
     valorActual: 0,
     gastosVentaEstimados: 0,
     latenteBruto: 0,
     impuestoLatente: 0,
-    latenteNeto: 0
+    latenteNeto: 0,
+    capitalDiasLatente: 0
   });
+  beneficios.interesReal = crearMetricasInteres(beneficios.realizadoNeto, beneficios.capitalRealUsado, beneficios.capitalDiasReal);
+  beneficios.interesLatente = crearMetricasInteres(beneficios.latenteNeto, beneficios.invertidoAbierto, beneficios.capitalDiasLatente);
+  return beneficios;
 }
 
 function calcularResultadosRealizados(cartera){
@@ -638,10 +689,10 @@ function renderDashboard(){
   const resumenPosiciones = cartera.length ? cartera.map(g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
-    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)}</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span></p>`;
+    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)} (${formatearInteres(real.interes)})</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) + ' (' + formatearInteres(latente.interes) + ')' : '-'}</span></p>`;
   }).join("") : `<p class="muted">Todavía no tienes cartera real. Añade una compra desde Movimientos.</p>`;
-  const resumenBeneficios = `<p><strong>Beneficio/pérdida real FIFO:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</p>
-    <p><strong>Beneficio/pérdida latente:</strong> Bruto ${money(beneficios.latenteBruto, db.ajustes.moneda)} · Gastos venta estimados ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)} · Impuestos ${money(beneficios.impuestoLatente, db.ajustes.moneda)} · Neto ${money(beneficios.latenteNeto, db.ajustes.moneda)}</p>`;
+  const resumenBeneficios = `<p><strong>Beneficio/pérdida real FIFO:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesReal)}</p>
+    <p><strong>Beneficio/pérdida latente:</strong> Bruto ${money(beneficios.latenteBruto, db.ajustes.moneda)} · Gastos venta estimados ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)} · Impuestos ${money(beneficios.impuestoLatente, db.ajustes.moneda)} · Neto ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesLatente)}</p>`;
   el("dashboardResumen").innerHTML = resumenPosiciones + resumenBeneficios;
 }
 
@@ -670,8 +721,8 @@ function renderMovimientos(){
       <span class="bad"><strong>Ventas:</strong> ${ventas} · ${money(importeVentas, db.ajustes.moneda)}</span>
       <span class="good"><strong>Dividendos:</strong> ${dividendos} · ${money(importeDividendos, db.ajustes.moneda)}</span>
       <span><strong>Gastos compras/ventas:</strong> ${money(gastosCompras, db.ajustes.moneda)} / ${money(gastosVentas, db.ajustes.moneda)}</span>
-      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</span>
-      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)}</span>
+      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesReal)}</span>
+      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesLatente)}</span>
       <span class="warn"><strong>Seguimiento:</strong> ${seguimiento}</span>
     `;
   }
@@ -745,8 +796,8 @@ function renderCartera(){
       <span><strong>Vendidas:</strong> ${num(totalVendidas,0)}</span>
       <span><strong>Invertido abierto:</strong> ${money(totalInvertido, db.ajustes.moneda)}</span>
       <span><strong>Valor actual:</strong> ${money(totalValorActual, db.ajustes.moneda)}</span>
-      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</span>
-      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)}</span>
+      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesReal)}</span>
+      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesLatente)}</span>
       <span><strong>Gastos compra/venta:</strong> ${money(totalGastosCompra, db.ajustes.moneda)} / ${money(totalGastosVenta, db.ajustes.moneda)}</span>
     `;
   }
@@ -773,8 +824,8 @@ function renderCartera(){
             <span><strong>Invertido abierto:</strong> ${money(g.invertidoNeto, db.ajustes.moneda)}</span>
             <span><strong>Precio medio:</strong> ${money(g.precioMedio, db.ajustes.moneda)}</span>
             <span><strong>Última cotización:</strong> ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "Sin cotización"}</span>
-            <span class="${real.neto>=0?'good':'bad'}"><strong>Real:</strong> ${money(real.neto, db.ajustes.moneda)}</span>
-            <span class="${latente.neto>=0?'good':'bad'}"><strong>Latente:</strong> ${latente.cot ? money(latente.neto, db.ajustes.moneda) : "-"}</span>
+            <span class="${real.neto>=0?'good':'bad'}"><strong>Real:</strong> ${money(real.neto, db.ajustes.moneda)} · ${formatearInteres(real.interes)}</span>
+            <span class="${latente.neto>=0?'good':'bad'}"><strong>Latente:</strong> ${latente.cot ? money(latente.neto, db.ajustes.moneda) + " · " + formatearInteres(latente.interes) : "-"}</span>
           </div>
           <h3>Movimientos</h3>
           <div class="table-wrap">
@@ -813,8 +864,8 @@ function mostrarDetalleCartera(ticker){
   panel.classList.remove("hidden");
   panel.innerHTML = `
     <h3>Detalle de ${g.nombre} (${g.ticker})</h3>
-    <p><strong>Beneficio/pérdida real:</strong> <span class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</span> · ventas cerradas con coste FIFO fijo y dividendos netos.</p>
-    <p><strong>Beneficio/pérdida latente:</strong> <span class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) : '-'}</span> · acciones abiertas según cotización actual.</p>
+    <p><strong>Beneficio/pérdida real:</strong> <span class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</span> · ${formatearInteres(real.interes)} · ventas cerradas con coste FIFO fijo y dividendos netos.</p>
+    <p><strong>Beneficio/pérdida latente:</strong> <span class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) + ' · ' + formatearInteres(latente.interes) : '-'}</span> · acciones abiertas según cotización actual.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Precio / importe</th><th>Ret./Gastos</th><th>Total / neto</th></tr></thead>
@@ -877,8 +928,8 @@ function renderCotizaciones(){
       <td><input value="${v.exchange || ""}" onchange="actualizarExchange('${v.ticker}', this.value)" placeholder="XMAD"></td>
       <td><input type="number" step="0.000001" value="${cot ? cot.price : ""}" placeholder="Precio" onchange="guardarCotizacionManual('${v.ticker}', this.value)"></td>
       <td>${cot ? new Date(cot.updatedAt).toLocaleString("es-ES") + " · " + cot.source : "-"}</td>
-      <td class="${real && real.neto>=0?'good':'bad'}">${real ? money(real.neto, db.ajustes.moneda) : "-"}</td>
-      <td class="${latente && latente.neto>=0?'good':'bad'}">${latente && latente.cot ? money(latente.neto, db.ajustes.moneda) : "-"}</td>
+      <td class="${real && real.neto>=0?'good':'bad'}">${real ? money(real.neto, db.ajustes.moneda) + " · " + formatearInteres(real.interes) : "-"}</td>
+      <td class="${latente && latente.neto>=0?'good':'bad'}">${latente && latente.cot ? money(latente.neto, db.ajustes.moneda) + " · " + formatearInteres(latente.interes) : "-"}</td>
       <td>
         <button class="small-btn edit" onclick="actualizarUnaApi('${v.ticker}')">API</button>
       </td>
@@ -970,14 +1021,12 @@ function renderComparativa(){
       <td>${money(g.invertidoNeto, db.ajustes.moneda)}</td>
       <td>${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "Sin cotización"}</td>
       <td>${latente.cot ? money(latente.gastosVenta, db.ajustes.moneda) : "-"}</td>
-      <td class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}</td>
+      <td class="${real.neto>=0?'good':'bad'}">${money(real.neto, db.ajustes.moneda)}<br><small>${formatearInteres(real.interes)}</small></td>
       <td class="${latente.bruto>=0?'good':'bad'}">${latente.cot ? money(latente.bruto, db.ajustes.moneda) : "-"}</td>
-      <td class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) : "-"}</td>
+      <td class="${latente.neto>=0?'good':'bad'}">${latente.cot ? money(latente.neto, db.ajustes.moneda) + "<br><small>" + formatearInteres(latente.interes) + "</small>" : "-"}</td>
       <td class="${latente.rentabilidad>=0?'good':'bad'}">${latente.cot ? num(latente.rentabilidad,2)+" %" : "-"}</td>
     </tr>`;
   });
-
-  const totalRent = beneficios.invertidoAbierto ? (beneficios.latenteNeto / beneficios.invertidoAbierto) * 100 : 0;
 
   if(el("totalesComparativa")){
     el("totalesComparativa").innerHTML = `
@@ -985,9 +1034,9 @@ function renderComparativa(){
       <span><strong>Invertido abierto:</strong> ${money(beneficios.invertidoAbierto, db.ajustes.moneda)}</span>
       <span><strong>Valor actual:</strong> ${money(beneficios.valorActual, db.ajustes.moneda)}</span>
       <span><strong>Gastos venta estimados:</strong> ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)}</span>
-      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real neto:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)}</span>
+      <span class="${beneficios.realizadoNeto>=0?'good':'bad'}"><strong>Real neto:</strong> ${money(beneficios.realizadoNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesReal)}</span>
       <span class="${beneficios.latenteBruto>=0?'good':'bad'}"><strong>Latente bruto:</strong> ${money(beneficios.latenteBruto, db.ajustes.moneda)}</span>
-      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente neto:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${num(totalRent,2)} %</span>
+      <span class="${beneficios.latenteNeto>=0?'good':'bad'}"><strong>Latente neto:</strong> ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesLatente)}</span>
     `;
   }
 
@@ -1021,12 +1070,22 @@ function generarDatosParaIA(){
       valor_actual: latente.cot ? Number(latente.valorActual.toFixed(4)) : null,
       beneficio_real_bruto: Number(real.bruto.toFixed(4)),
       beneficio_real_neto: Number(real.neto.toFixed(4)),
+      interes_real_generado: Number(real.interes.generado.toFixed(4)),
+      interes_real_actual_pct: Number(real.interes.actualPct.toFixed(4)),
+      interes_real_anual_pct: Number(real.interes.anualPct.toFixed(4)),
+      dias_beneficio_real: Number(real.interes.dias.toFixed(2)),
+      capital_usado_real: Number(real.interes.capitalUsado.toFixed(4)),
       dividendos_brutos: Number(g.dividendosBrutos.toFixed(4)),
       retenciones_dividendos: Number(g.retencionesDividendos.toFixed(4)),
       dividendos_netos: Number(g.dividendosNetos.toFixed(4)),
       beneficio_latente_bruto: latente.cot ? Number(latente.bruto.toFixed(4)) : null,
       beneficio_latente_neto: latente.cot ? Number(latente.neto.toFixed(4)) : null,
       rentabilidad_latente_pct: latente.cot ? Number(latente.rentabilidad.toFixed(4)) : null,
+      interes_latente_generado: latente.cot ? Number(latente.interes.generado.toFixed(4)) : null,
+      interes_latente_actual_pct: latente.cot ? Number(latente.interes.actualPct.toFixed(4)) : null,
+      interes_latente_anual_pct: latente.cot ? Number(latente.interes.anualPct.toFixed(4)) : null,
+      dias_beneficio_latente: latente.cot ? Number(latente.interes.dias.toFixed(2)) : null,
+      capital_usado_latente: latente.cot ? Number(latente.interes.capitalUsado.toFixed(4)) : null,
       movimientos: g.movimientos.map(m=>({
         fecha: m.fecha,
         tipo: m.tipo,
@@ -1073,6 +1132,16 @@ function generarDatosParaIA(){
       dividendos_netos: Number(beneficios.dividendosNetos.toFixed(4)),
       latente_bruto: Number(beneficios.latenteBruto.toFixed(4)),
       latente_neto: Number(beneficios.latenteNeto.toFixed(4)),
+      interes_real_generado: Number(beneficios.interesReal.generado.toFixed(4)),
+      interes_real_actual_pct: Number(beneficios.interesReal.actualPct.toFixed(4)),
+      interes_real_anual_pct: Number(beneficios.interesReal.anualPct.toFixed(4)),
+      dias_beneficio_real: Number(beneficios.interesReal.dias.toFixed(2)),
+      capital_usado_real: Number(beneficios.interesReal.capitalUsado.toFixed(4)),
+      interes_latente_generado: Number(beneficios.interesLatente.generado.toFixed(4)),
+      interes_latente_actual_pct: Number(beneficios.interesLatente.actualPct.toFixed(4)),
+      interes_latente_anual_pct: Number(beneficios.interesLatente.anualPct.toFixed(4)),
+      dias_beneficio_latente: Number(beneficios.interesLatente.dias.toFixed(2)),
+      capital_usado_latente: Number(beneficios.interesLatente.capitalUsado.toFixed(4)),
       nota: "Real = ventas cerradas con coste FIFO fijo y dividendos netos. Latente = posiciones abiertas según última cotización."
     },
     cartera,
