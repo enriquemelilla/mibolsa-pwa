@@ -411,12 +411,12 @@ function crearMetricasInteres(beneficio, capital, capitalDias){
   const dias = capitalUsado > 0 ? Math.max(Number(capitalDias || 0) / capitalUsado, 1) : 0;
   const actualPct = capitalUsado > 0 ? (Number(beneficio || 0) / capitalUsado) * 100 : 0;
   const anualPct = dias > 0 ? actualPct * (365 / dias) : 0;
-  return { capitalUsado, dias, actualPct, anualPct };
+  return { generado: Number(beneficio || 0), capitalUsado, dias, actualPct, anualPct };
 }
 
 function formatearInteres(metricas){
-  if(!metricas || !metricas.capitalUsado) return "Interés actual - · anual - · días -";
-  return `Interés actual ${num(metricas.actualPct,2)} % · anual ${num(metricas.anualPct,2)} % · ${num(metricas.dias,0)} días · capital ${money(metricas.capitalUsado, db.ajustes.moneda)}`;
+  if(!metricas || !metricas.capitalUsado) return "Generado - · interés actual - · anual - · días - · capital -";
+  return `Generado ${money(metricas.generado, db.ajustes.moneda)} · interés actual ${num(metricas.actualPct,2)} % · anual ${num(metricas.anualPct,2)} % · ${num(metricas.dias,0)} días · capital ${money(metricas.capitalUsado, db.ajustes.moneda)}`;
 }
 
 function registrarCompraEnCartera(g, m, gastos){
@@ -1070,6 +1070,7 @@ function generarDatosParaIA(){
       valor_actual: latente.cot ? Number(latente.valorActual.toFixed(4)) : null,
       beneficio_real_bruto: Number(real.bruto.toFixed(4)),
       beneficio_real_neto: Number(real.neto.toFixed(4)),
+      interes_real_generado: Number(real.interes.generado.toFixed(4)),
       interes_real_actual_pct: Number(real.interes.actualPct.toFixed(4)),
       interes_real_anual_pct: Number(real.interes.anualPct.toFixed(4)),
       dias_beneficio_real: Number(real.interes.dias.toFixed(2)),
@@ -1080,6 +1081,7 @@ function generarDatosParaIA(){
       beneficio_latente_bruto: latente.cot ? Number(latente.bruto.toFixed(4)) : null,
       beneficio_latente_neto: latente.cot ? Number(latente.neto.toFixed(4)) : null,
       rentabilidad_latente_pct: latente.cot ? Number(latente.rentabilidad.toFixed(4)) : null,
+      interes_latente_generado: latente.cot ? Number(latente.interes.generado.toFixed(4)) : null,
       interes_latente_actual_pct: latente.cot ? Number(latente.interes.actualPct.toFixed(4)) : null,
       interes_latente_anual_pct: latente.cot ? Number(latente.interes.anualPct.toFixed(4)) : null,
       dias_beneficio_latente: latente.cot ? Number(latente.interes.dias.toFixed(2)) : null,
@@ -1130,10 +1132,12 @@ function generarDatosParaIA(){
       dividendos_netos: Number(beneficios.dividendosNetos.toFixed(4)),
       latente_bruto: Number(beneficios.latenteBruto.toFixed(4)),
       latente_neto: Number(beneficios.latenteNeto.toFixed(4)),
+      interes_real_generado: Number(beneficios.interesReal.generado.toFixed(4)),
       interes_real_actual_pct: Number(beneficios.interesReal.actualPct.toFixed(4)),
       interes_real_anual_pct: Number(beneficios.interesReal.anualPct.toFixed(4)),
       dias_beneficio_real: Number(beneficios.interesReal.dias.toFixed(2)),
       capital_usado_real: Number(beneficios.interesReal.capitalUsado.toFixed(4)),
+      interes_latente_generado: Number(beneficios.interesLatente.generado.toFixed(4)),
       interes_latente_actual_pct: Number(beneficios.interesLatente.actualPct.toFixed(4)),
       interes_latente_anual_pct: Number(beneficios.interesLatente.anualPct.toFixed(4)),
       dias_beneficio_latente: Number(beneficios.interesLatente.dias.toFixed(2)),
