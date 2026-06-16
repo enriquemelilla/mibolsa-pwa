@@ -1074,6 +1074,7 @@ function crearContextoIntradiaParaIA(cartera){
         objetivo: "órdenes limitadas diarias realistas para colocar al inicio de sesión",
         compras: "2 tramos por debajo o cerca del precio actual, con posibilidad razonable de ejecutarse durante el día; no usar precios muy alejados",
         ventas: "2 tramos por encima o cerca del precio actual, parciales y ejecutables en sesión si hay movimiento normal",
+        cartera_completa: "incluir obligatoriamente una ficha intradía para este valor; si no hay compra o venta recomendable, marcar NO_COMPRAR o NO_VENDER en lugar de inventar una orden",
         vencimiento: "diario",
         tipo_orden: "limitada",
         evitar: "órdenes imposibles, importes desproporcionados o ventas de más acciones que las disponibles"
@@ -1213,7 +1214,7 @@ function generarDatosParaIA(){
         ],
         operaciones_intradia: {
           fecha_hora_calculo: "YYYY-MM-DDTHH:mm:ss.sssZ",
-          criterio: "Órdenes limitadas diarias calculadas con los datos actuales y distintas de recomendaciones IA",
+          criterio: "Órdenes limitadas diarias calculadas con los datos actuales y distintas de recomendaciones IA. Debe incluir todos los valores de cartera con cotización; si una operación no se recomienda, indicar NO_COMPRAR o NO_VENDER.",
           ordenes: [
             {
               ticker: "SAN",
@@ -1221,10 +1222,10 @@ function generarDatosParaIA(){
               cantidad_actual: 100,
               precio_actual: 10.46,
               valor_actual: 1046,
-              compra_tramo_1: {precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
-              compra_tramo_2: {precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
-              venta_tramo_1: {precio_limite: 10.58, cantidad_acciones: 25, importe_estimado: 264.5, probabilidad_ejecucion: "media", motivo: "rebote intradía cercano"},
-              venta_tramo_2: {precio_limite: 10.72, cantidad_acciones: 25, importe_estimado: 268, probabilidad_ejecucion: "baja-media", motivo: "extensión intradía realista"},
+              compra_tramo_1: {accion: "COMPRAR", precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
+              compra_tramo_2: {accion: "COMPRAR", precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
+              venta_tramo_1: {accion: "NO_VENDER", motivo: "no crear una venta intradía artificial si el objetivo realista no es alcanzable hoy"},
+              venta_tramo_2: {accion: "NO_VENDER", motivo: "mantener; precio de venta recomendable demasiado alejado para sesión intradía"},
               vencimiento: "diario",
               tipo_orden: "limitada",
               comentario: "texto breve"
@@ -1288,7 +1289,7 @@ function getPromptBaseIA(){
     ],
     operaciones_intradia: {
       fecha_hora_calculo: "YYYY-MM-DDTHH:mm:ss.sssZ",
-      criterio: "órdenes limitadas diarias realistas calculadas con los datos actuales, separadas de recomendaciones IA",
+      criterio: "órdenes limitadas diarias realistas calculadas con los datos actuales, separadas de recomendaciones IA; incluir todos los valores de cartera con cotización y usar NO_COMPRAR o NO_VENDER cuando no proceda",
       ordenes: [
         {
           ticker: "SAN",
@@ -1296,10 +1297,10 @@ function getPromptBaseIA(){
           cantidad_actual: 100,
           precio_actual: 10.46,
           valor_actual: 1046,
-          compra_tramo_1: {precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
-          compra_tramo_2: {precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
-          venta_tramo_1: {precio_limite: 10.58, cantidad_acciones: 25, importe_estimado: 264.5, probabilidad_ejecucion: "media", motivo: "rebote intradía cercano"},
-          venta_tramo_2: {precio_limite: 10.72, cantidad_acciones: 25, importe_estimado: 268, probabilidad_ejecucion: "baja-media", motivo: "extensión intradía realista"},
+          compra_tramo_1: {accion: "COMPRAR", precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
+          compra_tramo_2: {accion: "COMPRAR", precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
+          venta_tramo_1: {accion: "NO_VENDER", motivo: "no crear una venta intradía artificial si el objetivo realista no es alcanzable hoy"},
+          venta_tramo_2: {accion: "NO_VENDER", motivo: "mantener; precio de venta recomendable demasiado alejado para sesión intradía"},
           vencimiento: "diario",
           tipo_orden: "limitada",
           comentario: "texto breve"
@@ -1309,7 +1310,7 @@ function getPromptBaseIA(){
   };
 
   return promptUsuario
-    + "\n\nIMPORTANTE:\nDevuelve SOLO JSON válido, sin markdown, sin comentarios fuera del JSON."
+    + "\n\nIMPORTANTE:\nDevuelve SOLO JSON válido, sin markdown, sin comentarios fuera del JSON. En operaciones_intradia incluye toda mi cartera con cotización actual; si no recomiendas compra intradía pon NO_COMPRAR en el ticket de compra, y si no recomiendas venta intradía pon NO_VENDER en el ticket de venta, sin inventar una orden contraria."
     + "\n\nEstructura obligatoria:\n"
     + JSON.stringify(estructura, null, 2)
     + "\n\nDatos de mi cartera:\n"
@@ -1671,15 +1672,47 @@ function formatoNumeroIntradia(value, decimals=2){
   return num(value, decimals);
 }
 
+function normalizarAccionIntradia(tramo, tipo){
+  const texto = typeof tramo === "string" ? tramo : (tramo?.accion || tramo?.recomendacion || tramo?.decision || "");
+  const accion = String(texto).trim().toUpperCase().replace(/\s+/g, "_");
+  if(["NO_COMPRAR", "NO_COMPRA", "NO_BUY"].includes(accion)) return "NO_COMPRAR";
+  if(["NO_VENDER", "NO_VENTA", "NO_SELL"].includes(accion)) return "NO_VENDER";
+  if(["COMPRAR", "COMPRA", "BUY"].includes(accion)) return "COMPRAR";
+  if(["VENDER", "VENTA", "SELL"].includes(accion)) return "VENDER";
+  if(!tramo || typeof tramo !== "object") return tipo === "compra" ? "NO_COMPRAR" : "NO_VENDER";
+  return tramo.precio_limite || tramo.precio || tramo.cotizacion ? (tipo === "compra" ? "COMPRAR" : "VENDER") : "";
+}
+
+function getMotivoIntradia(tramo){
+  if(typeof tramo === "string") return "";
+  return tramo?.motivo || tramo?.descripcion || tramo?.comentario || "";
+}
+
 function renderOrdenIntradia(orden, key, titulo, clase){
   const tramo = orden?.[key] || {};
+  const tipo = clase === "buy" ? "compra" : "venta";
+  const accion = normalizarAccionIntradia(tramo, tipo);
+  if(accion === "NO_COMPRAR" || accion === "NO_VENDER"){
+    const texto = accion === "NO_COMPRAR" ? "No comprar" : "No vender";
+    return `<div class="intradia-order ${clase}">
+      <strong>${titulo}</strong>
+      <span><b>Ticket:</b> ${texto}</span>
+      <span><b>Límite:</b> -</span>
+      <span><b>Cantidad:</b> 0</span>
+      <span><b>Importe:</b> -</span>
+      <span><b>Prob.:</b> no aplica</span>
+      <small>${getMotivoIntradia(tramo)}</small>
+    </div>`;
+  }
+
   return `<div class="intradia-order ${clase}">
     <strong>${titulo}</strong>
+    ${accion ? `<span><b>Ticket:</b> ${accion === "COMPRAR" ? "Comprar" : "Vender"}</span>` : ""}
     <span><b>Límite:</b> ${formatoNumeroIntradia(tramo.precio_limite ?? tramo.precio ?? tramo.cotizacion, 4)}</span>
     <span><b>Cantidad:</b> ${formatoNumeroIntradia(tramo.cantidad_acciones ?? tramo.cantidad, 0)}</span>
     <span><b>Importe:</b> ${tramo.importe_estimado !== undefined ? money(tramo.importe_estimado, db.ajustes.moneda) : "-"}</span>
     <span><b>Prob.:</b> ${tramo.probabilidad_ejecucion || tramo.probabilidad || "-"}</span>
-    <small>${tramo.motivo || tramo.descripcion || ""}</small>
+    <small>${getMotivoIntradia(tramo)}</small>
   </div>`;
 }
 
