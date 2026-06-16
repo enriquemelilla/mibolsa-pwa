@@ -177,10 +177,18 @@ function aceptarAvisoRecomendacionesIA(){
 
 function extraerJsonValido(raw){
   const texto = (raw || "").trim();
-  const inicio = texto.indexOf("{");
-  const fin = texto.lastIndexOf("}");
-  if(inicio === -1 || fin === -1 || fin <= inicio){
-    throw new Error("No se encontró un objeto JSON válido.");
+  const inicioObjeto = texto.indexOf("{");
+  const inicioArray = texto.indexOf("[");
+  const inicios = [inicioObjeto, inicioArray].filter(i=>i !== -1);
+  const inicio = inicios.length ? Math.min(...inicios) : -1;
+  if(inicio === -1){
+    throw new Error("No se encontró JSON válido.");
+  }
+
+  const cierre = texto[inicio] === "[" ? "]" : "}";
+  const fin = texto.lastIndexOf(cierre);
+  if(fin === -1 || fin <= inicio){
+    throw new Error("No se encontró JSON válido completo.");
   }
   return texto.slice(inicio, fin + 1);
 }
@@ -1314,6 +1322,108 @@ async function copiarPromptIA(){
   setStatus("Prompt base copiado. Pégalo en ChatGPT.");
 }
 
+function getPrimerValorDefinido(...values){
+  return values.find(value=>value !== undefined && value !== null && value !== "");
+}
+
+function normalizarOperacionIntradia(orden, accion={}){
+  if(!orden || typeof orden !== "object") return null;
+
+  const normalizada = {
+    ...orden,
+    ticker: getPrimerValorDefinido(orden.ticker, orden.valor, orden.simbolo, accion.ticker),
+    nombre: getPrimerValorDefinido(orden.nombre, orden.accion, accion.nombre),
+    cantidad_actual: getPrimerValorDefinido(orden.cantidad_actual, orden.acciones_actuales, orden.cantidad_cartera, orden.cantidad, accion.cantidad_actual),
+    precio_actual: getPrimerValorDefinido(orden.precio_actual, orden.cotizacion_actual, orden.cotizacion, accion.precio_actual),
+    valor_actual: getPrimerValorDefinido(orden.valor_actual, orden.importe_actual),
+    compra_tramo_1: getPrimerValorDefinido(orden.compra_tramo_1, orden.compra1, orden.compra_1),
+    compra_tramo_2: getPrimerValorDefinido(orden.compra_tramo_2, orden.compra2, orden.compra_2),
+    venta_tramo_1: getPrimerValorDefinido(orden.venta_tramo_1, orden.venta1, orden.venta_1),
+    venta_tramo_2: getPrimerValorDefinido(orden.venta_tramo_2, orden.venta2, orden.venta_2),
+    vencimiento: getPrimerValorDefinido(orden.vencimiento, "diario"),
+    tipo_orden: getPrimerValorDefinido(orden.tipo_orden, orden.tipo, "limitada")
+  };
+
+  if(Array.isArray(orden.compras)){
+    normalizada.compra_tramo_1 = normalizada.compra_tramo_1 || orden.compras[0];
+    normalizada.compra_tramo_2 = normalizada.compra_tramo_2 || orden.compras[1];
+  }
+  if(Array.isArray(orden.ventas)){
+    normalizada.venta_tramo_1 = normalizada.venta_tramo_1 || orden.ventas[0];
+    normalizada.venta_tramo_2 = normalizada.venta_tramo_2 || orden.ventas[1];
+  }
+  if(orden.operaciones && typeof orden.operaciones === "object"){
+    normalizada.compra_tramo_1 = normalizada.compra_tramo_1 || orden.operaciones.compra_tramo_1 || orden.operaciones.compra1;
+    normalizada.compra_tramo_2 = normalizada.compra_tramo_2 || orden.operaciones.compra_tramo_2 || orden.operaciones.compra2;
+    normalizada.venta_tramo_1 = normalizada.venta_tramo_1 || orden.operaciones.venta_tramo_1 || orden.operaciones.venta1;
+    normalizada.venta_tramo_2 = normalizada.venta_tramo_2 || orden.operaciones.venta_tramo_2 || orden.operaciones.venta2;
+  }
+
+  return normalizada;
+}
+
+function normalizarBloqueIntradia(intradia, obj={}){
+  if(!intradia) return null;
+
+  if(Array.isArray(intradia)){
+    return {
+      fecha_hora_calculo: obj.fecha_hora_calculo || obj.fecha || new Date().toISOString(),
+      criterio: obj.criterio_intradia || "Órdenes intradía importadas desde la respuesta de ChatGPT.",
+      ordenes: intradia.map(o=>normalizarOperacionIntradia(o)).filter(Boolean)
+    };
+  }
+
+  if(typeof intradia !== "object") return null;
+
+  const ordenes = getPrimerValorDefinido(
+    intradia.ordenes,
+    intradia.ordenes_intradia,
+    intradia.operaciones,
+    intradia.valores,
+    intradia.acciones,
+    intradia.recomendaciones_intradia
+  );
+
+  let ordenesNormalizadas = [];
+  if(Array.isArray(ordenes)){
+    ordenesNormalizadas = ordenes.map(o=>normalizarOperacionIntradia(o)).filter(Boolean);
+  }else if(ordenes && typeof ordenes === "object"){
+    ordenesNormalizadas = Object.entries(ordenes)
+      .map(([ticker, orden])=>normalizarOperacionIntradia({ticker, ...orden}))
+      .filter(Boolean);
+  }else if(intradia.ticker || intradia.compra_tramo_1 || intradia.compra1 || intradia.venta_tramo_1 || intradia.venta1 || Array.isArray(intradia.compras) || Array.isArray(intradia.ventas)){
+    ordenesNormalizadas = [normalizarOperacionIntradia(intradia)].filter(Boolean);
+  }else{
+    const clavesMeta = new Set(["fecha", "fecha_hora_calculo", "criterio", "comentario", "tipo_orden", "vencimiento"]);
+    ordenesNormalizadas = Object.entries(intradia)
+      .filter(([key, value])=>!clavesMeta.has(key) && value && typeof value === "object")
+      .map(([ticker, orden])=>normalizarOperacionIntradia({ticker, ...orden}))
+      .filter(Boolean);
+  }
+
+  return {
+    ...intradia,
+    fecha_hora_calculo: intradia.fecha_hora_calculo || intradia.fecha || obj.fecha_hora_calculo || obj.fecha || new Date().toISOString(),
+    ordenes: ordenesNormalizadas
+  };
+}
+
+function extraerOperacionesIntradiaDeAcciones(acciones){
+  if(!Array.isArray(acciones)) return [];
+  return acciones.flatMap(accion=>{
+    const intradia = accion.operaciones_intradia || accion.operacionesIntradia || accion.intradia || accion.ordenes_intradia;
+    if(!intradia) return [];
+    if(Array.isArray(intradia)){
+      return intradia.map(o=>normalizarOperacionIntradia(o, accion)).filter(Boolean);
+    }
+    if(intradia.ordenes || intradia.ordenes_intradia || intradia.operaciones){
+      const bloque = normalizarBloqueIntradia(intradia, accion);
+      return bloque && Array.isArray(bloque.ordenes) ? bloque.ordenes.map(o=>normalizarOperacionIntradia(o, accion)).filter(Boolean) : [];
+    }
+    return [normalizarOperacionIntradia(intradia, accion)].filter(Boolean);
+  });
+}
+
 function normalizarRespuestaIA(obj){
   if(Array.isArray(obj)){
     return {fecha: today(), lectura_general: "", acciones: obj};
@@ -1324,21 +1434,23 @@ function normalizarRespuestaIA(obj){
   if(!Array.isArray(obj.acciones)){
     throw new Error("El JSON debe contener un array llamado 'acciones'.");
   }
-  if(obj.operaciones_intradia && !obj.operacionesIntradia){
-    obj.operacionesIntradia = obj.operaciones_intradia;
+
+  const intradia = obj.operacionesIntradia || obj.operaciones_intradia || obj.intradia || obj.ordenes_intradia || obj.operaciones_diarias;
+  const bloqueIntradia = normalizarBloqueIntradia(intradia, obj);
+  const ordenesDesdeAcciones = extraerOperacionesIntradiaDeAcciones(obj.acciones);
+
+  if(bloqueIntradia){
+    if(!Array.isArray(bloqueIntradia.ordenes)) bloqueIntradia.ordenes = [];
+    bloqueIntradia.ordenes = bloqueIntradia.ordenes.concat(ordenesDesdeAcciones);
+    obj.operacionesIntradia = bloqueIntradia;
+  }else if(ordenesDesdeAcciones.length){
+    obj.operacionesIntradia = {
+      fecha_hora_calculo: obj.fecha_hora_calculo || obj.fecha || new Date().toISOString(),
+      criterio: "Órdenes intradía importadas desde cada acción de la respuesta de ChatGPT.",
+      ordenes: ordenesDesdeAcciones
+    };
   }
-  if(obj.intradia && !obj.operacionesIntradia){
-    obj.operacionesIntradia = obj.intradia;
-  }
-  if(obj.operacionesIntradia && Array.isArray(obj.operacionesIntradia)){
-    obj.operacionesIntradia = {fecha_hora_calculo: obj.fecha_hora_calculo || obj.fecha || new Date().toISOString(), ordenes: obj.operacionesIntradia};
-  }
-  if(obj.operacionesIntradia && obj.operes && !obj.operacionesIntradia.ordenes){
-    obj.operacionesIntradia.ordenes = obj.operes;
-  }
-  if(obj.operacionesIntradia && obj.operacionesIntradia.ordenes_intradia && !obj.operacionesIntradia.ordenes){
-    obj.operacionesIntradia.ordenes = obj.operacionesIntradia.ordenes_intradia;
-  }
+
   return obj;
 }
 
