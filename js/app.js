@@ -664,6 +664,7 @@ function renderAll(){
   renderCotizaciones();
   renderComparativa();
   renderRecomendacionesIA();
+  renderOperacionesIntradia();
   cargarAjustesForm();
   marcarTablasResponsive();
 }
@@ -1048,6 +1049,30 @@ function renderComparativa(){
 }
 
 
+
+function crearContextoIntradiaParaIA(cartera){
+  return cartera
+    .filter(v=>Number(v.acciones_netas) > 0 && Number(v.ultima_cotizacion) > 0)
+    .map(v=>({
+      ticker: v.ticker,
+      nombre: v.nombre,
+      cantidad_actual: v.acciones_netas,
+      precio_actual: v.ultima_cotizacion,
+      valor_actual: v.valor_actual,
+      precio_medio: v.precio_medio,
+      rentabilidad_latente_pct: v.rentabilidad_latente_pct,
+      fecha_cotizacion: v.fecha_cotizacion,
+      criterios: {
+        objetivo: "órdenes limitadas diarias realistas para colocar al inicio de sesión",
+        compras: "2 tramos por debajo o cerca del precio actual, con posibilidad razonable de ejecutarse durante el día; no usar precios muy alejados",
+        ventas: "2 tramos por encima o cerca del precio actual, parciales y ejecutables en sesión si hay movimiento normal",
+        vencimiento: "diario",
+        tipo_orden: "limitada",
+        evitar: "órdenes imposibles, importes desproporcionados o ventas de más acciones que las disponibles"
+      }
+    }));
+}
+
 function generarDatosParaIA(){
   const carteraAgrupada = agruparCartera();
   const beneficios = calcularBeneficios(carteraAgrupada);
@@ -1146,6 +1171,7 @@ function generarDatosParaIA(){
     },
     cartera,
     seguimiento,
+    intradia_contexto: crearContextoIntradiaParaIA(cartera),
     instrucciones_respuesta: {
       formato: "JSON estricto sin markdown",
       recomendaciones_validas: ["VENDER", "MANTENER", "COMPRAR", "NO_ENTRAR"],
@@ -1176,7 +1202,27 @@ function generarDatosParaIA(){
             riesgo: "medio",
             prioridad: "alta"
           }
-        ]
+        ],
+        operaciones_intradia: {
+          fecha_hora_calculo: "YYYY-MM-DDTHH:mm:ss.sssZ",
+          criterio: "Órdenes limitadas diarias calculadas con los datos actuales y distintas de recomendaciones IA",
+          ordenes: [
+            {
+              ticker: "SAN",
+              nombre: "Banco Santander",
+              cantidad_actual: 100,
+              precio_actual: 10.46,
+              valor_actual: 1046,
+              compra_tramo_1: {precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
+              compra_tramo_2: {precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
+              venta_tramo_1: {precio_limite: 10.58, cantidad_acciones: 25, importe_estimado: 264.5, probabilidad_ejecucion: "media", motivo: "rebote intradía cercano"},
+              venta_tramo_2: {precio_limite: 10.72, cantidad_acciones: 25, importe_estimado: 268, probabilidad_ejecucion: "baja-media", motivo: "extensión intradía realista"},
+              vencimiento: "diario",
+              tipo_orden: "limitada",
+              comentario: "texto breve"
+            }
+          ]
+        }
       }
     }
   };
@@ -1231,7 +1277,27 @@ function getPromptBaseIA(){
         riesgo: "medio",
         prioridad: "alta"
       }
-    ]
+    ],
+    operaciones_intradia: {
+      fecha_hora_calculo: "YYYY-MM-DDTHH:mm:ss.sssZ",
+      criterio: "órdenes limitadas diarias realistas calculadas con los datos actuales, separadas de recomendaciones IA",
+      ordenes: [
+        {
+          ticker: "SAN",
+          nombre: "Banco Santander",
+          cantidad_actual: 100,
+          precio_actual: 10.46,
+          valor_actual: 1046,
+          compra_tramo_1: {precio_limite: 10.35, cantidad_acciones: 20, importe_estimado: 207, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
+          compra_tramo_2: {precio_limite: 10.22, cantidad_acciones: 20, importe_estimado: 204.4, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente pero posible"},
+          venta_tramo_1: {precio_limite: 10.58, cantidad_acciones: 25, importe_estimado: 264.5, probabilidad_ejecucion: "media", motivo: "rebote intradía cercano"},
+          venta_tramo_2: {precio_limite: 10.72, cantidad_acciones: 25, importe_estimado: 268, probabilidad_ejecucion: "baja-media", motivo: "extensión intradía realista"},
+          vencimiento: "diario",
+          tipo_orden: "limitada",
+          comentario: "texto breve"
+        }
+      ]
+    }
   };
 
   return promptUsuario
@@ -1258,6 +1324,21 @@ function normalizarRespuestaIA(obj){
   if(!Array.isArray(obj.acciones)){
     throw new Error("El JSON debe contener un array llamado 'acciones'.");
   }
+  if(obj.operaciones_intradia && !obj.operacionesIntradia){
+    obj.operacionesIntradia = obj.operaciones_intradia;
+  }
+  if(obj.intradia && !obj.operacionesIntradia){
+    obj.operacionesIntradia = obj.intradia;
+  }
+  if(obj.operacionesIntradia && Array.isArray(obj.operacionesIntradia)){
+    obj.operacionesIntradia = {fecha_hora_calculo: obj.fecha_hora_calculo || obj.fecha || new Date().toISOString(), ordenes: obj.operacionesIntradia};
+  }
+  if(obj.operacionesIntradia && obj.operes && !obj.operacionesIntradia.ordenes){
+    obj.operacionesIntradia.ordenes = obj.operes;
+  }
+  if(obj.operacionesIntradia && obj.operacionesIntradia.ordenes_intradia && !obj.operacionesIntradia.ordenes){
+    obj.operacionesIntradia.ordenes = obj.operacionesIntradia.ordenes_intradia;
+  }
   return obj;
 }
 
@@ -1277,7 +1358,8 @@ function cargarRespuestaIA(){
     };
     saveDB(db);
     renderRecomendacionesIA();
-    setStatus("Recomendaciones IA cargadas correctamente.");
+    renderOperacionesIntradia();
+    setStatus("Recomendaciones IA y operaciones intradía cargadas correctamente.");
   }catch(e){
     alert("JSON no válido: " + e.message);
   }
@@ -1343,7 +1425,27 @@ function pegarEjemploRespuestaIA(){
         riesgo: "medio",
         prioridad: "media"
       }
-    ]
+    ],
+    operaciones_intradia: {
+      fecha_hora_calculo: new Date().toISOString(),
+      criterio: "Órdenes limitadas diarias realistas para preparar al inicio de sesión.",
+      ordenes: [
+        {
+          ticker: "BBVA",
+          nombre: "BBVA",
+          cantidad_actual: 335,
+          precio_actual: 18.48,
+          valor_actual: 6190.8,
+          compra_tramo_1: {precio_limite: 18.32, cantidad_acciones: 25, importe_estimado: 458, probabilidad_ejecucion: "media", motivo: "retroceso intradía cercano"},
+          compra_tramo_2: {precio_limite: 18.12, cantidad_acciones: 25, importe_estimado: 453, probabilidad_ejecucion: "baja-media", motivo: "retroceso más exigente"},
+          venta_tramo_1: {precio_limite: 18.68, cantidad_acciones: 50, importe_estimado: 934, probabilidad_ejecucion: "media", motivo: "rebote cercano"},
+          venta_tramo_2: {precio_limite: 18.92, cantidad_acciones: 50, importe_estimado: 946, probabilidad_ejecucion: "baja-media", motivo: "extensión diaria posible"},
+          vencimiento: "diario",
+          tipo_orden: "limitada",
+          comentario: "Ajustar si la apertura se aleja mucho del precio actual."
+        }
+      ]
+    }
   };
   el("jsonEntradaIA").value = JSON.stringify(ejemplo, null, 2);
   setStatus("Ejemplo pegado.");
@@ -1354,7 +1456,8 @@ function borrarRecomendacionesIA(){
   db.recomendacionesIA = null;
   saveDB(db);
   renderRecomendacionesIA();
-  setStatus("Recomendaciones IA borradas.");
+  renderOperacionesIntradia();
+  setStatus("Recomendaciones IA y operaciones intradía borradas.");
 }
 
 function claseRecomendacionIA(rec){
@@ -1440,6 +1543,84 @@ function renderRecomendacionesIA(){
       </div>
     </article>`;
   }).join("");
+}
+
+function getOperacionesIntradiaGuardadas(){
+  const data = db.recomendacionesIA || {};
+  const intradia = data.operacionesIntradia || data.operaciones_intradia || data.intradia || null;
+  if(Array.isArray(intradia)){
+    return {fecha_hora_calculo: data.fecha_hora_calculo || data.fecha || data.cargado_en || "", ordenes: intradia};
+  }
+  return intradia;
+}
+
+function formatoNumeroIntradia(value, decimals=2){
+  if(value === undefined || value === null || value === "") return "-";
+  return num(value, decimals);
+}
+
+function renderOrdenIntradia(orden, key, titulo, clase){
+  const tramo = orden?.[key] || {};
+  return `<div class="intradia-order ${clase}">
+    <strong>${titulo}</strong>
+    <span><b>Límite:</b> ${formatoNumeroIntradia(tramo.precio_limite ?? tramo.precio ?? tramo.cotizacion, 4)}</span>
+    <span><b>Cantidad:</b> ${formatoNumeroIntradia(tramo.cantidad_acciones ?? tramo.cantidad, 0)}</span>
+    <span><b>Importe:</b> ${tramo.importe_estimado !== undefined ? money(tramo.importe_estimado, db.ajustes.moneda) : "-"}</span>
+    <span><b>Prob.:</b> ${tramo.probabilidad_ejecucion || tramo.probabilidad || "-"}</span>
+    <small>${tramo.motivo || tramo.descripcion || ""}</small>
+  </div>`;
+}
+
+function renderOperacionesIntradia(){
+  const resumen = el("panelResumenIntradia");
+  const panel = el("panelOperacionesIntradia");
+  if(!resumen || !panel) return;
+
+  const intradia = getOperacionesIntradiaGuardadas();
+  const ordenes = intradia && Array.isArray(intradia.ordenes) ? intradia.ordenes : [];
+
+  if(!intradia || !ordenes.length){
+    resumen.innerHTML = `<p class="muted">Todavía no hay operaciones intradía cargadas. Genera el JSON en Recomendaciones IA, pásalo a ChatGPT y carga la respuesta con el bloque <strong>operaciones_intradia</strong>.</p>`;
+    panel.innerHTML = "";
+    return;
+  }
+
+  resumen.innerHTML = `
+    <div class="totals-bar">
+      <span><strong>Fecha y hora cálculo:</strong> ${intradia.fecha_hora_calculo ? formatFechaHora(intradia.fecha_hora_calculo) : "-"}</span>
+      <span><strong>Órdenes preparadas:</strong> ${ordenes.length}</span>
+      <span><strong>Tipo:</strong> limitada</span>
+      <span><strong>Vencimiento:</strong> diario</span>
+    </div>
+    ${intradia.criterio ? `<p class="muted">${intradia.criterio}</p>` : ""}
+  `;
+
+  panel.innerHTML = ordenes.map(o=>`
+    <article class="ia-card intradia-card">
+      <div class="ia-card-header">
+        <div>
+          <h3>${o.nombre || o.ticker || "Valor"}</h3>
+          <span class="muted">${o.ticker || ""}</span>
+        </div>
+        <strong class="ia-badge">${o.tipo_orden || "limitada"} · ${o.vencimiento || "diario"}</strong>
+      </div>
+
+      <div class="intradia-current-box">
+        <span><strong>Cantidad cartera:</strong> ${formatoNumeroIntradia(o.cantidad_actual ?? o.acciones_actuales ?? o.cantidad, 0)}</span>
+        <span><strong>Cotización actual:</strong> ${formatoNumeroIntradia(o.precio_actual ?? o.cotizacion_actual, 4)}</span>
+        <span><strong>Valor:</strong> ${o.valor_actual !== undefined ? money(o.valor_actual, db.ajustes.moneda) : "-"}</span>
+        <span><strong>Forma:</strong> cantidad × cotización</span>
+      </div>
+
+      <div class="intradia-orders-grid">
+        ${renderOrdenIntradia(o, "compra_tramo_1", "Compra tramo 1", "buy")}
+        ${renderOrdenIntradia(o, "compra_tramo_2", "Compra tramo 2", "buy")}
+        ${renderOrdenIntradia(o, "venta_tramo_1", "Venta tramo 1", "sell")}
+        ${renderOrdenIntradia(o, "venta_tramo_2", "Venta tramo 2", "sell")}
+      </div>
+      ${o.comentario ? `<p>${o.comentario}</p>` : ""}
+    </article>
+  `).join("");
 }
 
 function cargarAjustesForm(){

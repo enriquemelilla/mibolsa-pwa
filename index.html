@@ -29,6 +29,7 @@
       <button class="tab" data-view="cotizaciones">Cotizaciones</button>
       <button class="tab" data-view="comparativa">Comparativa</button>
       <button class="tab" data-view="recomendaciones">Recomendaciones IA</button>
+      <button class="tab" data-view="intradia">Operaciones intradía</button>
       <button class="tab" data-view="ajustes">Ajustes</button>
     </nav>
 
@@ -317,6 +318,19 @@
           </div>
           <div id="panelResumenIA" class="ia-summary"></div>
           <div id="panelRecomendacionesIA" class="ia-grid"></div>
+        </div>
+      </section>
+
+      <section id="view-intradia" class="view">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Operaciones intradía</h2>
+              <p class="muted">Órdenes limitadas con vencimiento diario para preparar al inicio de la sesión. Se calculan junto con las Recomendaciones IA, pero con criterios intradía independientes.</p>
+            </div>
+          </div>
+          <div id="panelResumenIntradia" class="ia-summary"></div>
+          <div id="panelOperacionesIntradia" class="intradia-grid"></div>
         </div>
       </section>
 
