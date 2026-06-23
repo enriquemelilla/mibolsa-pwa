@@ -1578,9 +1578,9 @@ function borrarRecomendacionesIA(){
 
 function claseRecomendacionIA(rec){
   const r = (rec || "").toUpperCase();
-  if(r === "COMPRAR") return "good";
+  if(r === "COMPRAR") return "bad";
   if(r === "MANTENER") return "warn";
-  if(r === "VENDER") return "bad";
+  if(r === "VENDER") return "good";
   if(r === "NO_ENTRAR") return "muted";
   return "";
 }
@@ -1592,7 +1592,7 @@ function renderTramosIA(tramos, tipo){
 
   return `<div class="ia-tramos">
     ${tramos.map(t=>`
-      <div class="ia-tramo">
+      <div class="ia-tramo ${tipo}">
         <strong>Tramo ${t.tramo ?? ""}</strong>
         <span>Precio: ${t.precio ?? "-"}</span>
         <span>${t.cantidad_pct !== undefined ? "Cantidad: " + t.cantidad_pct + "%" : ""}</span>
@@ -1766,7 +1766,7 @@ function getPrecioOrdenIntradia(orden, key, tipo){
 function renderLineaGraficaIntradia(item, tipo, precioActual){
   if(!item) return "";
   const variacion = precioActual ? ((item.precio - precioActual) / precioActual) * 100 : 0;
-  const clase = variacion >= 0 ? "above" : "below";
+  const clase = tipo === "compra" ? "buy" : "sell";
   const signo = variacion > 0 ? "+" : "";
   return `<div class="intradia-graph-line ${clase}">
     <span class="intradia-graph-pct">${signo}${num(variacion, 2)}%</span>
