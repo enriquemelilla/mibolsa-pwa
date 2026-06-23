@@ -888,12 +888,12 @@ button,
   font-weight:700;
 }
 
-.intradia-graph-line.sell{
-  color:#f87171;
+.intradia-graph-line.above{
+  color:#22c55e;
 }
 
-.intradia-graph-line.buy{
-  color:#22c55e;
+.intradia-graph-line.below{
+  color:#f87171;
 }
 
 .intradia-graph-current{
