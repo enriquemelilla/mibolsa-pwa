@@ -1766,7 +1766,7 @@ function getPrecioOrdenIntradia(orden, key, tipo){
 function renderLineaGraficaIntradia(item, tipo, precioActual){
   if(!item) return "";
   const variacion = precioActual ? ((item.precio - precioActual) / precioActual) * 100 : 0;
-  const clase = tipo === "venta" ? "sell" : "buy";
+  const clase = variacion >= 0 ? "above" : "below";
   const signo = variacion > 0 ? "+" : "";
   return `<div class="intradia-graph-line ${clase}">
     <span class="intradia-graph-pct">${signo}${num(variacion, 2)}%</span>
