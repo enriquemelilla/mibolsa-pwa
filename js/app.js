@@ -1,5 +1,6 @@
 let db = loadDB();
 let deferredPrompt = null;
+let intradiaViewMode = localStorage.getItem("intradiaViewMode") || "detalle";
 
 const el = (id) => document.getElementById(id);
 
@@ -119,6 +120,8 @@ function init(){
   bind("btnEjemploRespuestaIA", "click", pegarEjemploRespuestaIA);
   bind("btnBorrarRecomendacionesIA", "click", borrarRecomendacionesIA);
   bind("btnAceptarAvisoIA", "click", aceptarAvisoRecomendacionesIA);
+  bind("btnIntradiaVistaDetalle", "click", ()=>setIntradiaViewMode("detalle"));
+  bind("btnIntradiaVistaGrafica", "click", ()=>setIntradiaViewMode("grafica"));
 
   window.addEventListener("beforeinstallprompt", (e)=>{
     e.preventDefault();
@@ -1716,6 +1719,65 @@ function renderOrdenIntradia(orden, key, titulo, clase){
   </div>`;
 }
 
+function setIntradiaViewMode(mode){
+  intradiaViewMode = mode === "grafica" ? "grafica" : "detalle";
+  localStorage.setItem("intradiaViewMode", intradiaViewMode);
+  renderOperacionesIntradia();
+}
+
+function actualizarBotonesVistaIntradia(){
+  const btnDetalle = el("btnIntradiaVistaDetalle");
+  const btnGrafica = el("btnIntradiaVistaGrafica");
+  if(btnDetalle) btnDetalle.classList.toggle("active", intradiaViewMode === "detalle");
+  if(btnGrafica) btnGrafica.classList.toggle("active", intradiaViewMode === "grafica");
+}
+
+function getPrecioOrdenIntradia(orden, key, tipo){
+  const tramo = orden?.[key] || {};
+  const accion = normalizarAccionIntradia(tramo, tipo);
+  if((tipo === "compra" && accion !== "COMPRAR") || (tipo === "venta" && accion !== "VENDER")) return null;
+  const precio = Number(tramo.precio_limite ?? tramo.precio ?? tramo.cotizacion);
+  if(!Number.isFinite(precio) || precio <= 0) return null;
+  return {precio, tramo};
+}
+
+function renderLineaGraficaIntradia(item, tipo, precioActual){
+  if(!item) return "";
+  const variacion = precioActual ? ((item.precio - precioActual) / precioActual) * 100 : 0;
+  const clase = tipo === "venta" ? "sell" : "buy";
+  const signo = variacion > 0 ? "+" : "";
+  return `<div class="intradia-graph-line ${clase}">
+    <span class="intradia-graph-pct">${signo}${num(variacion, 2)}%</span>
+    <span class="intradia-graph-rule"></span>
+    <span class="intradia-graph-price">${formatoNumeroIntradia(item.precio, 4)}</span>
+  </div>`;
+}
+
+function renderGraficaIntradia(orden){
+  const precioActual = Number(orden.precio_actual ?? orden.cotizacion_actual);
+  const ventas = [
+    getPrecioOrdenIntradia(orden, "venta_tramo_1", "venta"),
+    getPrecioOrdenIntradia(orden, "venta_tramo_2", "venta")
+  ].filter(Boolean).sort((a, b)=>b.precio - a.precio);
+  const compras = [
+    getPrecioOrdenIntradia(orden, "compra_tramo_1", "compra"),
+    getPrecioOrdenIntradia(orden, "compra_tramo_2", "compra")
+  ].filter(Boolean).sort((a, b)=>b.precio - a.precio);
+
+  return `<div class="intradia-graph-box" aria-label="Gráfico intradía de ${orden.nombre || orden.ticker || "valor"}">
+    <div class="intradia-graph-zone sells">
+      ${ventas.map(item=>renderLineaGraficaIntradia(item, "venta", precioActual)).join("") || `<span class="intradia-graph-empty">Sin ventas recomendadas</span>`}
+    </div>
+    <div class="intradia-graph-current">
+      <span>Precio actual</span>
+      <strong>${Number.isFinite(precioActual) ? formatoNumeroIntradia(precioActual, 4) : "-"}</strong>
+    </div>
+    <div class="intradia-graph-zone buys">
+      ${compras.map(item=>renderLineaGraficaIntradia(item, "compra", precioActual)).join("") || `<span class="intradia-graph-empty">Sin compras recomendadas</span>`}
+    </div>
+  </div>`;
+}
+
 function renderOperacionesIntradia(){
   const resumen = el("panelResumenIntradia");
   const panel = el("panelOperacionesIntradia");
@@ -1723,6 +1785,8 @@ function renderOperacionesIntradia(){
 
   const intradia = getOperacionesIntradiaGuardadas();
   const ordenes = intradia && Array.isArray(intradia.ordenes) ? intradia.ordenes : [];
+
+  actualizarBotonesVistaIntradia();
 
   if(!intradia || !ordenes.length){
     resumen.innerHTML = `<p class="muted">Todavía no hay operaciones intradía cargadas. Genera el JSON en Recomendaciones IA, pásalo a ChatGPT y carga la respuesta con el bloque <strong>operaciones_intradia</strong>.</p>`;
@@ -1757,12 +1821,12 @@ function renderOperacionesIntradia(){
         <span><strong>Forma:</strong> cantidad × cotización</span>
       </div>
 
-      <div class="intradia-orders-grid">
+      ${intradiaViewMode === "grafica" ? renderGraficaIntradia(o) : `<div class="intradia-orders-grid">
         ${renderOrdenIntradia(o, "compra_tramo_1", "Compra tramo 1", "buy")}
         ${renderOrdenIntradia(o, "compra_tramo_2", "Compra tramo 2", "buy")}
         ${renderOrdenIntradia(o, "venta_tramo_1", "Venta tramo 1", "sell")}
         ${renderOrdenIntradia(o, "venta_tramo_2", "Venta tramo 2", "sell")}
-      </div>
+      </div>`}
       ${o.comentario ? `<p>${o.comentario}</p>` : ""}
     </article>
   `).join("");
