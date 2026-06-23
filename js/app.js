@@ -110,7 +110,7 @@ function init(){
   bind("inputImportar", "change", importarDatos);
   bind("btnBorrarTodo", "click", borrarTodo);
   bind("btnActualizarTodasApi", "click", actualizarTodasApi);
-  bind("btnRefrescarCotizaciones", "click", renderCotizaciones);
+  bind("btnRefrescarCotizaciones", "click", renderAll);
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -1732,6 +1732,28 @@ function actualizarBotonesVistaIntradia(){
   if(btnGrafica) btnGrafica.classList.toggle("active", intradiaViewMode === "grafica");
 }
 
+
+function getPrecioActualIntradia(orden){
+  const ticker = orden?.ticker;
+  const cot = ticker ? getCotizacion(ticker) : null;
+  const precio = Number(cot?.price ?? orden?.precio_actual ?? orden?.cotizacion_actual);
+  return Number.isFinite(precio) && precio > 0 ? precio : null;
+}
+
+function getCantidadActualIntradia(orden, carteraPorTicker={}){
+  const cartera = orden?.ticker ? carteraPorTicker[orden.ticker] : null;
+  const cantidad = Number(cartera?.cantidadNeta ?? orden?.cantidad_actual ?? orden?.acciones_actuales ?? orden?.cantidad);
+  return Number.isFinite(cantidad) ? cantidad : null;
+}
+
+function getValorActualIntradia(orden, carteraPorTicker={}){
+  const precioActual = getPrecioActualIntradia(orden);
+  const cantidadActual = getCantidadActualIntradia(orden, carteraPorTicker);
+  if(precioActual !== null && cantidadActual !== null) return precioActual * cantidadActual;
+  const valor = Number(orden?.valor_actual);
+  return Number.isFinite(valor) ? valor : null;
+}
+
 function getPrecioOrdenIntradia(orden, key, tipo){
   const tramo = orden?.[key] || {};
   const accion = normalizarAccionIntradia(tramo, tipo);
@@ -1754,7 +1776,7 @@ function renderLineaGraficaIntradia(item, tipo, precioActual){
 }
 
 function renderGraficaIntradia(orden){
-  const precioActual = Number(orden.precio_actual ?? orden.cotizacion_actual);
+  const precioActual = getPrecioActualIntradia(orden);
   const ventas = [
     getPrecioOrdenIntradia(orden, "venta_tramo_1", "venta"),
     getPrecioOrdenIntradia(orden, "venta_tramo_2", "venta")
@@ -1804,7 +1826,13 @@ function renderOperacionesIntradia(){
     ${intradia.criterio ? `<p class="muted">${intradia.criterio}</p>` : ""}
   `;
 
-  panel.innerHTML = ordenes.map(o=>`
+  const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[g.ticker, g]));
+
+  panel.innerHTML = ordenes.map(o=>{
+    const precioActual = getPrecioActualIntradia(o);
+    const cantidadActual = getCantidadActualIntradia(o, carteraPorTicker);
+    const valorActual = getValorActualIntradia(o, carteraPorTicker);
+    return `
     <article class="ia-card intradia-card">
       <div class="ia-card-header">
         <div>
@@ -1815,9 +1843,9 @@ function renderOperacionesIntradia(){
       </div>
 
       <div class="intradia-current-box">
-        <span><strong>Cantidad cartera:</strong> ${formatoNumeroIntradia(o.cantidad_actual ?? o.acciones_actuales ?? o.cantidad, 0)}</span>
-        <span><strong>Cotización actual:</strong> ${formatoNumeroIntradia(o.precio_actual ?? o.cotizacion_actual, 4)}</span>
-        <span><strong>Valor:</strong> ${o.valor_actual !== undefined ? money(o.valor_actual, db.ajustes.moneda) : "-"}</span>
+        <span><strong>Cantidad cartera:</strong> ${cantidadActual !== null ? formatoNumeroIntradia(cantidadActual, 0) : "-"}</span>
+        <span><strong>Cotización actual:</strong> ${precioActual !== null ? formatoNumeroIntradia(precioActual, 4) : "-"}</span>
+        <span><strong>Valor:</strong> ${valorActual !== null ? money(valorActual, db.ajustes.moneda) : "-"}</span>
         <span><strong>Forma:</strong> cantidad × cotización</span>
       </div>
 
@@ -1829,7 +1857,8 @@ function renderOperacionesIntradia(){
       </div>`}
       ${o.comentario ? `<p>${o.comentario}</p>` : ""}
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function cargarAjustesForm(){
