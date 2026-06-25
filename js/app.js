@@ -178,6 +178,10 @@ function aceptarAvisoRecomendacionesIA(){
   abrirVista("recomendaciones");
 }
 
+function normalizarTicker(ticker){
+  return String(ticker || "").trim().toUpperCase();
+}
+
 function extraerJsonValido(raw){
   const texto = (raw || "").trim();
   const inicioObjeto = texto.indexOf("{");
@@ -926,7 +930,7 @@ function renderSeguimiento(){
 function renderCotizaciones(){
   const tbody = el("tablaCotizaciones");
   const valores = getTodosValoresCotizables();
-  const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[g.ticker, g]));
+  const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[normalizarTicker(g.ticker), g]));
 
   tbody.innerHTML = valores.map(v=>{
     const cot = getCotizacion(v.ticker);
@@ -1765,8 +1769,14 @@ function getPrecioInicialIntradia(orden){
 }
 
 function getPrecioMedioCarteraIntradia(orden, carteraPorTicker={}){
-  const cartera = orden?.ticker ? carteraPorTicker[orden.ticker] : null;
-  const precio = Number(cartera?.precioMedio ?? orden?.precio_medio_cartera ?? orden?.precio_medio);
+  const ticker = normalizarTicker(orden?.ticker || "");
+  const cartera = ticker ? carteraPorTicker[ticker] : null;
+  const precio = Number(
+    cartera?.precioMedio
+    ?? orden?.precio_medio_cartera
+    ?? orden?.precio_medio
+    ?? orden?.situacion_actual?.precio_medio
+  );
   return Number.isFinite(precio) && precio > 0 ? precio : null;
 }
 
@@ -1811,12 +1821,20 @@ function getVariacionMostradaGraficaIntradia(precioReferencia, precioActual){
   return Number(getVariacionGraficaIntradia(precioReferencia, precioActual).toFixed(2));
 }
 
+function getClaseSignoGraficaIntradia(precioReferencia, precioActual){
+  const variacionMostrada = getVariacionMostradaGraficaIntradia(precioReferencia, precioActual);
+  if(variacionMostrada > 0) return "positive";
+  if(variacionMostrada < 0) return "negative";
+  return "neutral";
+}
+
 function renderLineaGraficaIntradia(item, tipo, precioActual){
   if(!item) return "";
   const variacion = getVariacionGraficaIntradia(item.precio, precioActual);
   const variacionMostrada = getVariacionMostradaGraficaIntradia(item.precio, precioActual);
-  const claseSigno = variacionMostrada > 0 ? "positive" : variacionMostrada < 0 ? "negative" : "neutral";
-  const clase = item.clase || `${tipo === "compra" ? "buy" : "sell"} ${claseSigno}`;
+  const claseSigno = getClaseSignoGraficaIntradia(item.precio, precioActual);
+  const claseTipo = tipo === "compra" ? "buy" : tipo === "venta" ? "sell" : "average";
+  const clase = item.clase ? `${item.clase} ${claseSigno}` : `${claseTipo} ${claseSigno}`;
   const signo = variacionMostrada > 0 ? "+" : "";
   return `<div class="intradia-graph-line ${clase}">
     <span class="intradia-graph-pct">${signo}${num(variacion, 2)}%</span>
@@ -1838,7 +1856,7 @@ function renderGraficaIntradia(orden, carteraPorTicker={}){
     getPrecioOrdenIntradia(orden, "compra_tramo_2", "compra")
   ].filter(Boolean).sort((a, b)=>b.precio - a.precio);
 
-  const lineaPrecioMedio = precioMedio !== null ? renderLineaGraficaIntradia({precio: precioMedio, etiqueta: "Precio medio", clase: "average"}, "medio", precioActual) : "";
+  const lineaPrecioMedio = precioMedio !== null ? renderLineaGraficaIntradia({precio: precioMedio, etiqueta: "Precio medio cartera", clase: "average"}, "medio", precioActual) : "";
   const variacionMostradaPrecioMedio = precioMedio !== null ? getVariacionMostradaGraficaIntradia(precioMedio, precioActual) : 0;
 
   return `<div class="intradia-graph-box" aria-label="Gráfico intradía de ${orden.nombre || orden.ticker || "valor"}">
@@ -1884,7 +1902,7 @@ function renderOperacionesIntradia(){
     ${intradia.criterio ? `<p class="muted">${intradia.criterio}</p>` : ""}
   `;
 
-  const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[g.ticker, g]));
+  const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[normalizarTicker(g.ticker), g]));
 
   panel.innerHTML = ordenes.map(o=>{
     const precioActual = getPrecioActualIntradia(o);
