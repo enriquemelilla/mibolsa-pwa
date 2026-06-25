@@ -1828,16 +1828,20 @@ function renderGraficaIntradia(orden, carteraPorTicker={}){
     getPrecioOrdenIntradia(orden, "compra_tramo_2", "compra")
   ].filter(Boolean).sort((a, b)=>b.precio - a.precio);
 
+  const lineaPrecioMedio = precioMedio !== null ? renderLineaGraficaIntradia({precio: precioMedio, etiqueta: "Precio medio", clase: "average"}, "medio", precioActual) : "";
+  const variacionPrecioMedio = precioMedio !== null && precioActual ? ((precioMedio - precioActual) / precioActual) * 100 : 0;
+
   return `<div class="intradia-graph-box" aria-label="Gráfico intradía de ${orden.nombre || orden.ticker || "valor"}">
     <div class="intradia-graph-zone sells">
       ${ventas.map(item=>renderLineaGraficaIntradia(item, "venta", precioActual)).join("") || `<span class="intradia-graph-empty">Sin ventas recomendadas</span>`}
     </div>
-    ${precioMedio !== null ? renderLineaGraficaIntradia({precio: precioMedio, etiqueta: "Precio medio", clase: "average"}, "medio", precioActual) : ""}
+    ${variacionPrecioMedio >= 0 ? lineaPrecioMedio : ""}
     <div class="intradia-graph-current">
       <span>Precio actual</span>
       ${renderVariacionInicialIntradia(precioActual, precioInicial)}
       <strong>${Number.isFinite(precioActual) ? formatoNumeroIntradia(precioActual, 4) : "-"}</strong>
     </div>
+    ${variacionPrecioMedio < 0 ? lineaPrecioMedio : ""}
     <div class="intradia-graph-zone buys">
       ${compras.map(item=>renderLineaGraficaIntradia(item, "compra", precioActual)).join("") || `<span class="intradia-graph-empty">Sin compras recomendadas</span>`}
     </div>
