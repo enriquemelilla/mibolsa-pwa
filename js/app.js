@@ -1644,8 +1644,6 @@ function actualizarBotonesVistaRecomendacionesIA(){
 
 function crearOrdenGraficaRecomendacionIA(accion){
   const situacion = accion?.situacion_actual || {};
-  const ventas = Array.isArray(accion?.ventas) ? accion.ventas : [];
-  const compras = Array.isArray(accion?.compras) ? accion.compras : [];
   return {
     nombre: accion?.nombre,
     ticker: accion?.ticker,
@@ -1653,16 +1651,63 @@ function crearOrdenGraficaRecomendacionIA(accion){
     cotizacion_actual: situacion.precio_actual ?? accion?.cotizacion_actual,
     precio_inicial: situacion.precio_actual ?? accion?.precio_actual,
     precio_medio: situacion.precio_medio ?? accion?.precio_medio,
-    usar_cotizacion_directa: true,
-    venta_tramo_1: ventas[0] ? {...ventas[0], precio_limite: ventas[0].precio, accion: "VENDER"} : null,
-    venta_tramo_2: ventas[1] ? {...ventas[1], precio_limite: ventas[1].precio, accion: "VENDER"} : null,
-    compra_tramo_1: compras[0] ? {...compras[0], precio_limite: compras[0].precio, accion: "COMPRAR"} : null,
-    compra_tramo_2: compras[1] ? {...compras[1], precio_limite: compras[1].precio, accion: "COMPRAR"} : null
+    usar_cotizacion_directa: true
   };
 }
 
+function getPrecioTramoRecomendacionIA(tramo, tipo){
+  if(!tramo || typeof tramo !== "object") return null;
+  const precio = Number(
+    tramo.precio
+    ?? tramo.precio_limite
+    ?? tramo.precio_objetivo
+    ?? tramo.objetivo
+    ?? (tipo === "venta" ? tramo.precio_venta : tramo.precio_compra)
+    ?? tramo.cotizacion
+  );
+  return Number.isFinite(precio) && precio > 0 ? precio : null;
+}
+
+function crearLineasGraficaRecomendacionIA(tramos, tipo){
+  if(!Array.isArray(tramos)) return [];
+  return tramos
+    .map((tramo, index)=>{
+      const precio = getPrecioTramoRecomendacionIA(tramo, tipo);
+      if(precio === null) return null;
+      return {
+        precio,
+        tramo,
+        etiqueta: tramo.tramo !== undefined ? `Tramo ${tramo.tramo}` : `Tramo ${index + 1}`
+      };
+    })
+    .filter(Boolean);
+}
+
 function renderGraficaRecomendacionIA(accion){
-  return renderGraficaIntradia(crearOrdenGraficaRecomendacionIA(accion));
+  const orden = crearOrdenGraficaRecomendacionIA(accion);
+  const precioActual = getPrecioActualIntradia(orden);
+  const precioInicial = getPrecioInicialIntradia(orden);
+  const precioMedio = getPrecioMedioCarteraIntradia(orden);
+  const ventas = crearLineasGraficaRecomendacionIA(accion?.ventas, "venta").sort((a, b)=>b.precio - a.precio);
+  const compras = crearLineasGraficaRecomendacionIA(accion?.compras, "compra").sort((a, b)=>b.precio - a.precio);
+  const lineaPrecioMedio = precioMedio !== null ? renderLineaGraficaIntradia({precio: precioMedio, etiqueta: "Precio medio cartera", clase: "average"}, "medio", precioActual) : "";
+  const variacionMostradaPrecioMedio = precioMedio !== null ? getVariacionMostradaGraficaIntradia(precioMedio, precioActual) : 0;
+
+  return `<div class="intradia-graph-box" aria-label="Gráfica de recomendación IA de ${accion?.nombre || accion?.ticker || "valor"}">
+    <div class="intradia-graph-zone sells">
+      ${ventas.map(item=>renderLineaGraficaIntradia(item, "venta", precioActual)).join("") || `<span class="intradia-graph-empty">Sin ventas propuestas</span>`}
+    </div>
+    ${variacionMostradaPrecioMedio >= 0 ? lineaPrecioMedio : ""}
+    <div class="intradia-graph-current">
+      <span>Precio actual</span>
+      ${renderVariacionInicialIntradia(precioActual, precioInicial)}
+      <strong>${Number.isFinite(precioActual) ? formatoNumeroIntradia(precioActual, 4) : "-"}</strong>
+    </div>
+    ${variacionMostradaPrecioMedio < 0 ? lineaPrecioMedio : ""}
+    <div class="intradia-graph-zone buys">
+      ${compras.map(item=>renderLineaGraficaIntradia(item, "compra", precioActual)).join("") || `<span class="intradia-graph-empty">Sin compras propuestas</span>`}
+    </div>
+  </div>`;
 }
 
 function renderDetalleRecomendacionIA(a){
