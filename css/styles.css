@@ -868,7 +868,7 @@ button,
 
 .intradia-graph-line{
   display:grid;
-  grid-template-columns:72px 1fr 86px;
+  grid-template-columns:72px 1fr 132px;
   align-items:center;
   gap:10px;
   font-size:13px;
@@ -898,6 +898,23 @@ button,
   color:#f87171;
 }
 
+.intradia-graph-line.positive{
+  color:#22c55e;
+}
+
+.intradia-graph-line.negative{
+  color:#f87171;
+}
+
+.intradia-graph-line.neutral{
+  color:var(--text);
+}
+
+.intradia-graph-line.average{
+  color:#fbbf24;
+  margin:8px 0;
+}
+
 .intradia-graph-current{
   display:flex;
   align-items:center;
@@ -917,6 +934,24 @@ button,
 
 .intradia-graph-current strong{
   font-size:22px;
+}
+
+.intradia-graph-current-delta{
+  flex:1;
+  text-align:right;
+  font-weight:800;
+}
+
+.intradia-graph-current-delta.positive{
+  color:#22c55e;
+}
+
+.intradia-graph-current-delta.negative{
+  color:#f87171;
+}
+
+.intradia-graph-current-delta.neutral{
+  color:var(--text);
 }
 
 .intradia-graph-empty{
