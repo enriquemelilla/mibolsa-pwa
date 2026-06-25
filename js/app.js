@@ -1,6 +1,7 @@
 let db = loadDB();
 let deferredPrompt = null;
 let intradiaViewMode = localStorage.getItem("intradiaViewMode") || "detalle";
+let recomendacionesIAViewMode = localStorage.getItem("recomendacionesIAViewMode") || "detalle";
 
 const el = (id) => document.getElementById(id);
 
@@ -120,6 +121,8 @@ function init(){
   bind("btnEjemploRespuestaIA", "click", pegarEjemploRespuestaIA);
   bind("btnBorrarRecomendacionesIA", "click", borrarRecomendacionesIA);
   bind("btnAceptarAvisoIA", "click", aceptarAvisoRecomendacionesIA);
+  bind("btnRecomendacionesIAVistaDetalle", "click", ()=>setRecomendacionesIAViewMode("detalle"));
+  bind("btnRecomendacionesIAVistaGrafica", "click", ()=>setRecomendacionesIAViewMode("grafica"));
   bind("btnIntradiaVistaDetalle", "click", ()=>setIntradiaViewMode("detalle"));
   bind("btnIntradiaVistaGrafica", "click", ()=>setIntradiaViewMode("grafica"));
 
@@ -1626,12 +1629,65 @@ function renderTramosIA(tramos, tipo){
   </div>`;
 }
 
+function setRecomendacionesIAViewMode(mode){
+  recomendacionesIAViewMode = mode === "grafica" ? "grafica" : "detalle";
+  localStorage.setItem("recomendacionesIAViewMode", recomendacionesIAViewMode);
+  renderRecomendacionesIA();
+}
+
+function actualizarBotonesVistaRecomendacionesIA(){
+  const btnDetalle = el("btnRecomendacionesIAVistaDetalle");
+  const btnGrafica = el("btnRecomendacionesIAVistaGrafica");
+  if(btnDetalle) btnDetalle.classList.toggle("active", recomendacionesIAViewMode === "detalle");
+  if(btnGrafica) btnGrafica.classList.toggle("active", recomendacionesIAViewMode === "grafica");
+}
+
+function crearOrdenGraficaRecomendacionIA(accion){
+  const situacion = accion?.situacion_actual || {};
+  const ventas = Array.isArray(accion?.ventas) ? accion.ventas : [];
+  const compras = Array.isArray(accion?.compras) ? accion.compras : [];
+  return {
+    nombre: accion?.nombre,
+    ticker: accion?.ticker,
+    precio_actual: situacion.precio_actual ?? accion?.precio_actual,
+    cotizacion_actual: situacion.precio_actual ?? accion?.cotizacion_actual,
+    precio_inicial: situacion.precio_actual ?? accion?.precio_actual,
+    precio_medio: situacion.precio_medio ?? accion?.precio_medio,
+    usar_cotizacion_directa: true,
+    venta_tramo_1: ventas[0] ? {...ventas[0], precio_limite: ventas[0].precio, accion: "VENDER"} : null,
+    venta_tramo_2: ventas[1] ? {...ventas[1], precio_limite: ventas[1].precio, accion: "VENDER"} : null,
+    compra_tramo_1: compras[0] ? {...compras[0], precio_limite: compras[0].precio, accion: "COMPRAR"} : null,
+    compra_tramo_2: compras[1] ? {...compras[1], precio_limite: compras[1].precio, accion: "COMPRAR"} : null
+  };
+}
+
+function renderGraficaRecomendacionIA(accion){
+  return renderGraficaIntradia(crearOrdenGraficaRecomendacionIA(accion));
+}
+
+function renderDetalleRecomendacionIA(a){
+  return `
+    <p>${a.comentario || ""}</p>
+
+    <div class="grid two">
+      <div>
+        <h4>Ventas propuestas</h4>
+        ${renderTramosIA(a.ventas, "venta")}
+      </div>
+      <div>
+        <h4>Compras propuestas</h4>
+        ${renderTramosIA(a.compras, "compra")}
+      </div>
+    </div>`;
+}
+
 function renderRecomendacionesIA(){
   const resumen = el("panelResumenIA");
   const panel = el("panelRecomendacionesIA");
   if(!resumen || !panel) return;
 
   const data = db.recomendacionesIA;
+  actualizarBotonesVistaRecomendacionesIA();
   if(!data){
     resumen.innerHTML = `<p class="muted">Todavía no hay recomendaciones cargadas. Genera el JSON, pásalo a ChatGPT y pega aquí la respuesta.</p>`;
     panel.innerHTML = "";
@@ -1668,18 +1724,7 @@ function renderRecomendacionesIA(){
         <span><strong>Prioridad:</strong> ${a.prioridad || "-"}</span>
       </div>
 
-      <p>${a.comentario || ""}</p>
-
-      <div class="grid two">
-        <div>
-          <h4>Ventas propuestas</h4>
-          ${renderTramosIA(a.ventas, "venta")}
-        </div>
-        <div>
-          <h4>Compras propuestas</h4>
-          ${renderTramosIA(a.compras, "compra")}
-        </div>
-      </div>
+      ${recomendacionesIAViewMode === "grafica" ? renderGraficaRecomendacionIA(a) : renderDetalleRecomendacionIA(a)}
     </article>`;
   }).join("");
 }
@@ -1758,7 +1803,7 @@ function actualizarBotonesVistaIntradia(){
 
 function getPrecioActualIntradia(orden){
   const ticker = orden?.ticker;
-  const cot = ticker ? getCotizacion(ticker) : null;
+  const cot = ticker && !orden?.usar_cotizacion_directa ? getCotizacion(ticker) : null;
   const precio = Number(cot?.price ?? orden?.precio_actual ?? orden?.cotizacion_actual);
   return Number.isFinite(precio) && precio > 0 ? precio : null;
 }
