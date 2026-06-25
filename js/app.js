@@ -1808,7 +1808,7 @@ function getVariacionGraficaIntradia(precioReferencia, precioActual){
 }
 
 function getVariacionMostradaGraficaIntradia(precioReferencia, precioActual){
-  return Number(num(getVariacionGraficaIntradia(precioReferencia, precioActual), 2));
+  return Number(getVariacionGraficaIntradia(precioReferencia, precioActual).toFixed(2));
 }
 
 function renderLineaGraficaIntradia(item, tipo, precioActual){
