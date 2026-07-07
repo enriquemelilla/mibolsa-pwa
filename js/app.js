@@ -1042,6 +1042,27 @@ function getTickerCotizacionOnline(row){
   );
 }
 
+function normalizarIdentificadorCotizacion(value){
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getNombreCotizacionOnline(row){
+  return normalizarIdentificadorCotizacion(
+    row?.nombre ||
+    row?.Nombre ||
+    row?.name ||
+    row?.Name ||
+    row?.empresa ||
+    row?.Empresa ||
+    buscarValorPorColumnas(row, ["nombre", "name", "empresa", "valor"])
+  );
+}
+
 function getPrecioCotizacionOnline(row){
   const value = row?.price ?? row?.precio ?? row?.cotizacion ?? row?.cotización ?? row?.ultimo ?? row?.último ?? buscarValorPorColumnas(row, ["price", "precio", "cotizacion", "ultimo"]);
   return normalizarNumeroDesdeExcel(value);
@@ -1061,21 +1082,37 @@ function getVariantesTickerCotizacionOnline(ticker){
   return [...new Set([normalizado, sinPrefijoMercado, sinSufijoMercado].filter(Boolean))];
 }
 
-function crearIndiceTickers(tickers){
-  return new Set(tickers.flatMap(getVariantesTickerCotizacionOnline));
+function getIdentificadoresValorCotizacionOnline(valor){
+  return [
+    ...getVariantesTickerCotizacionOnline(valor?.ticker),
+    ...getVariantesTickerCotizacionOnline(valor?.apiSymbol),
+    normalizarIdentificadorCotizacion(valor?.nombre)
+  ].filter(Boolean);
 }
 
-function estaTickerEnIndice(ticker, indice){
-  return getVariantesTickerCotizacionOnline(ticker).some(variante=>indice.has(variante));
+function getIdentificadoresFilaCotizacionOnline(row){
+  return [
+    ...getVariantesTickerCotizacionOnline(getTickerCotizacionOnline(row)),
+    getNombreCotizacionOnline(row)
+  ].filter(Boolean);
 }
 
-function getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers){
-  const ticker = getTickerCotizacionOnline(row);
-  const enCartera = estaTickerEnIndice(ticker, carteraTickers);
-  const enSeguimiento = estaTickerEnIndice(ticker, seguimientoTickers);
+function crearIndiceValoresCotizacionOnline(valores){
+  return new Set(valores.flatMap(getIdentificadoresValorCotizacionOnline));
+}
+
+function estaFilaEnIndiceCotizacionOnline(row, indice){
+  return getIdentificadoresFilaCotizacionOnline(row).some(identificador=>indice.has(identificador));
+}
+
+function getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers, carteraCerradaTickers=new Set()){
+  const enCartera = estaFilaEnIndiceCotizacionOnline(row, carteraTickers);
+  const enCarteraCerrada = estaFilaEnIndiceCotizacionOnline(row, carteraCerradaTickers);
+  const enSeguimiento = estaFilaEnIndiceCotizacionOnline(row, seguimientoTickers);
   if(enCartera && enSeguimiento) return "Cartera y seguimiento";
   if(enCartera) return "Mi cartera";
   if(enSeguimiento) return "Seguimiento";
+  if(enCarteraCerrada) return "Cartera sin valores";
   return "Solo Excel";
 }
 
@@ -1088,8 +1125,9 @@ function getClaseOrigenCotizacionOnline(origen){
 function filtrarCotizacionOnline(datos){
   const q = (el("buscarCotizacionOnline")?.value || "").trim().toLowerCase();
   const filtro = el("filtroCotizacionOnline")?.value || "todos";
-  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
-  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
+  const carteraAbierta = agruparCartera().filter(g=>g.cantidadNeta > 0);
+  const carteraTickers = crearIndiceValoresCotizacionOnline(carteraAbierta);
+  const seguimientoTickers = crearIndiceValoresCotizacionOnline(getSeguimiento());
 
   return datos.filter(row=>{
     const texto = textoPlano(row).toLowerCase();
@@ -1097,13 +1135,12 @@ function filtrarCotizacionOnline(datos){
 
     const precio = getPrecioCotizacionOnline(row);
     const variacion = getVariacionCotizacionOnline(row);
-    const ticker = getTickerCotizacionOnline(row);
 
     if(filtro === "suben") return Number.isFinite(variacion) && variacion > 0;
     if(filtro === "bajan") return Number.isFinite(variacion) && variacion < 0;
     if(filtro === "sinprecio") return !Number.isFinite(precio) || precio === 0;
-    if(filtro === "cartera") return ticker && estaTickerEnIndice(ticker, carteraTickers);
-    if(filtro === "seguimiento") return ticker && estaTickerEnIndice(ticker, seguimientoTickers);
+    if(filtro === "cartera") return estaFilaEnIndiceCotizacionOnline(row, carteraTickers);
+    if(filtro === "seguimiento") return estaFilaEnIndiceCotizacionOnline(row, seguimientoTickers);
     return true;
   });
 }
@@ -1112,12 +1149,15 @@ function renderResumenCotizacionOnline(datos){
   const resumen = el("resumenCotizacionOnline");
   if(!resumen) return;
 
-  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
-  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
-  const enCartera = datos.filter(row=>estaTickerEnIndice(getTickerCotizacionOnline(row), carteraTickers)).length;
-  const enSeguimiento = datos.filter(row=>estaTickerEnIndice(getTickerCotizacionOnline(row), seguimientoTickers)).length;
+  const carteraCompleta = agruparCartera();
+  const carteraTickers = crearIndiceValoresCotizacionOnline(carteraCompleta.filter(g=>g.cantidadNeta > 0));
+  const carteraCerradaTickers = crearIndiceValoresCotizacionOnline(carteraCompleta.filter(g=>g.cantidadNeta <= 0));
+  const seguimientoTickers = crearIndiceValoresCotizacionOnline(getSeguimiento());
+  const enCartera = datos.filter(row=>estaFilaEnIndiceCotizacionOnline(row, carteraTickers)).length;
+  const enCarteraCerrada = datos.filter(row=>estaFilaEnIndiceCotizacionOnline(row, carteraCerradaTickers)).length;
+  const enSeguimiento = datos.filter(row=>estaFilaEnIndiceCotizacionOnline(row, seguimientoTickers)).length;
   const soloExcel = datos.length - new Set(datos
-    .map((row, index)=>({index, origen:getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers)}))
+    .map((row, index)=>({index, origen:getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers, carteraCerradaTickers)}))
     .filter(item=>item.origen !== "Solo Excel")
     .map(item=>item.index)).size;
   const precios = datos.map(getPrecioCotizacionOnline);
@@ -1133,6 +1173,7 @@ function renderResumenCotizacionOnline(datos){
     <article class="stat"><span>Sin precio</span><strong class="${datos.length - conPrecio ? 'warn' : 'good'}">${datos.length - conPrecio}</strong></article>
     <article class="stat"><span>Suben / bajan / sin cambio</span><strong><span class="good">${suben}</span> / <span class="bad">${bajan}</span> / ${sinCambio}</strong></article>
     <article class="stat"><span>También en Mi cartera</span><strong class="good">${enCartera}</strong></article>
+    <article class="stat"><span>Cartera sin valores</span><strong>${enCarteraCerrada}</strong></article>
     <article class="stat"><span>También en Seguimiento</span><strong class="warn">${enSeguimiento}</strong></article>
     <article class="stat"><span>Solo en Excel</span><strong>${soloExcel}</strong></article>
   `;
@@ -1148,8 +1189,10 @@ function renderCotizacionOnline(){
   const datos = getCotizacionOnlineDatos();
   const filtrados = filtrarCotizacionOnline(datos);
   const columnas = getCotizacionOnlineColumnas(filtrados);
-  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
-  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
+  const carteraCompleta = agruparCartera();
+  const carteraTickers = crearIndiceValoresCotizacionOnline(carteraCompleta.filter(g=>g.cantidadNeta > 0));
+  const carteraCerradaTickers = crearIndiceValoresCotizacionOnline(carteraCompleta.filter(g=>g.cantidadNeta <= 0));
+  const seguimientoTickers = crearIndiceValoresCotizacionOnline(getSeguimiento());
 
   if(actualizada){
     actualizada.textContent = db.cotizacionOnline?.updatedAt
@@ -1182,7 +1225,7 @@ function renderCotizacionOnline(){
   body.innerHTML = filtrados.map(row=>{
     const variacion = getVariacionCotizacionOnline(row);
     const estadoClass = Number.isFinite(variacion) && variacion > 0 ? "good" : Number.isFinite(variacion) && variacion < 0 ? "bad" : "";
-    const origen = getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers);
+    const origen = getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers, carteraCerradaTickers);
     const claseOrigen = getClaseOrigenCotizacionOnline(origen);
     return `<tr class="online-row-${claseOrigen}">
       <td><span class="online-origin ${claseOrigen}">${escaparHtml(origen)}</span></td>
