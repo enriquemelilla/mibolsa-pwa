@@ -27,6 +27,7 @@
       <button class="tab" data-view="cartera">Mi cartera</button>
       <button class="tab" data-view="seguimiento">Seguimiento</button>
       <button class="tab" data-view="cotizaciones">Cotizaciones</button>
+      <button class="tab" data-view="cotizaciononline">Cotización online</button>
       <button class="tab" data-view="comparativa">Comparativa</button>
       <button class="tab" data-view="recomendaciones">Recomendaciones IA</button>
       <button class="tab" data-view="intradia">Operaciones intradía</button>
@@ -235,6 +236,46 @@
                 </tr>
               </thead>
               <tbody id="tablaCotizaciones"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-cotizaciononline" class="view">
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Cotización online</h2>
+              <p class="muted">Datos independientes descargados desde tu Google Sheet. Esta vista muestra todas las columnas que existan en el Excel publicado.</p>
+            </div>
+            <span id="cotizacionOnlineActualizada" class="quote-updated muted">Sin actualizar</span>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="btnActualizarCotizacionOnline" type="button">Actualizar desde Google</button>
+            <button class="btn secondary" id="btnRefrescarCotizacionOnline" type="button">Refrescar vista</button>
+            <button class="btn secondary" id="btnCopiarCotizacionOnline" type="button">Copiar datos</button>
+          </div>
+
+          <div id="cotizacionOnlineStatus" class="online-status muted"></div>
+          <div id="resumenCotizacionOnline" class="online-summary grid cards-4"></div>
+
+          <div class="online-toolbar">
+            <input id="buscarCotizacionOnline" class="search" placeholder="Buscar en todos los datos...">
+            <select id="filtroCotizacionOnline">
+              <option value="todos">Todos</option>
+              <option value="suben">Suben</option>
+              <option value="bajan">Bajan</option>
+              <option value="sinprecio">Sin precio</option>
+              <option value="cartera">Mi cartera</option>
+              <option value="seguimiento">Seguimiento</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="responsive-table online-table">
+              <thead id="tablaCotizacionOnlineHead"></thead>
+              <tbody id="tablaCotizacionOnline"></tbody>
             </table>
           </div>
         </div>

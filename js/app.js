@@ -112,6 +112,11 @@ function init(){
   bind("btnBorrarTodo", "click", borrarTodo);
   bind("btnActualizarTodasApi", "click", actualizarTodasApi);
   bind("btnRefrescarCotizaciones", "click", renderAll);
+  bind("btnActualizarCotizacionOnline", "click", actualizarCotizacionOnline);
+  bind("btnRefrescarCotizacionOnline", "click", renderCotizacionOnline);
+  bind("btnCopiarCotizacionOnline", "click", copiarCotizacionOnline);
+  bind("buscarCotizacionOnline", "input", renderCotizacionOnline);
+  bind("filtroCotizacionOnline", "change", renderCotizacionOnline);
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -183,6 +188,21 @@ function aceptarAvisoRecomendacionesIA(){
 
 function normalizarTicker(ticker){
   return String(ticker || "").trim().toUpperCase();
+}
+
+function escaparHtml(value){
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function textoPlano(value){
+  if(value === null || value === undefined) return "";
+  if(typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 function extraerJsonValido(raw){
@@ -680,6 +700,7 @@ function renderAll(){
   renderCartera();
   renderSeguimiento();
   renderCotizaciones();
+  renderCotizacionOnline();
   renderComparativa();
   renderRecomendacionesIA();
   renderOperacionesIntradia();
@@ -958,6 +979,219 @@ function renderCotizaciones(){
   if(!valores.length){
     tbody.innerHTML = `<tr><td colspan="9" class="muted">No hay valores para cotizar. Añade compras o seguimiento.</td></tr>`;
   }
+}
+
+function getCotizacionOnlineDatos(){
+  return Array.isArray(db.cotizacionOnline?.datos) ? db.cotizacionOnline.datos : [];
+}
+
+function getCotizacionOnlineColumnas(datos){
+  const columnas = [];
+  datos.forEach(row=>{
+    if(row && typeof row === "object" && !Array.isArray(row)){
+      Object.keys(row).forEach(key=>{
+        if(!columnas.includes(key)) columnas.push(key);
+      });
+    }else if(Array.isArray(row)){
+      row.forEach((_, index)=>{
+        const key = `Columna ${index + 1}`;
+        if(!columnas.includes(key)) columnas.push(key);
+      });
+    }
+  });
+  return columnas;
+}
+
+function getValorCotizacionOnlineCelda(row, columna){
+  if(Array.isArray(row)){
+    const match = columna.match(/^Columna (\d+)$/);
+    const index = match ? Number(match[1]) - 1 : -1;
+    return index >= 0 ? row[index] : "";
+  }
+  return row?.[columna];
+}
+
+function normalizarNumeroDesdeExcel(value){
+  if(typeof value === "number") return value;
+  if(typeof value !== "string") return NaN;
+  const limpio = value
+    .trim()
+    .replace(/[€$%]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  return Number(limpio);
+}
+
+function buscarValorPorColumnas(row, patrones){
+  const entry = Object.entries(row || {}).find(([key])=>{
+    const normalizada = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return patrones.some(p=>normalizada.includes(p));
+  });
+  return entry ? entry[1] : undefined;
+}
+
+function getTickerCotizacionOnline(row){
+  return normalizarTicker(
+    row?.ticker ||
+    row?.Ticker ||
+    row?.simbolo ||
+    row?.símbolo ||
+    row?.symbol ||
+    buscarValorPorColumnas(row, ["ticker", "simbolo", "symbol"])
+  );
+}
+
+function getPrecioCotizacionOnline(row){
+  const value = row?.price ?? row?.precio ?? row?.cotizacion ?? row?.cotización ?? row?.ultimo ?? row?.último ?? buscarValorPorColumnas(row, ["price", "precio", "cotizacion", "ultimo"]);
+  return normalizarNumeroDesdeExcel(value);
+}
+
+function getVariacionCotizacionOnline(row){
+  const value = row?.variacion_pct ?? row?.variación_pct ?? row?.variacionPorcentaje ?? row?.pct ?? row?.porcentaje ?? row?.changePercent ?? buscarValorPorColumnas(row, ["variacion", "porcentaje", "percent", "pct", "change"]);
+  return normalizarNumeroDesdeExcel(value);
+}
+
+function getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers){
+  const ticker = getTickerCotizacionOnline(row);
+  if(ticker && carteraTickers.has(ticker)) return "Mi cartera";
+  if(ticker && seguimientoTickers.has(ticker)) return "Seguimiento";
+  return "Solo Excel";
+}
+
+function filtrarCotizacionOnline(datos){
+  const q = (el("buscarCotizacionOnline")?.value || "").trim().toLowerCase();
+  const filtro = el("filtroCotizacionOnline")?.value || "todos";
+  const carteraTickers = new Set(agruparCartera().map(g=>normalizarTicker(g.ticker)));
+  const seguimientoTickers = new Set(getSeguimiento().map(s=>normalizarTicker(s.ticker)));
+
+  return datos.filter(row=>{
+    const texto = textoPlano(row).toLowerCase();
+    if(q && !texto.includes(q)) return false;
+
+    const precio = getPrecioCotizacionOnline(row);
+    const variacion = getVariacionCotizacionOnline(row);
+    const ticker = getTickerCotizacionOnline(row);
+
+    if(filtro === "suben") return Number.isFinite(variacion) && variacion > 0;
+    if(filtro === "bajan") return Number.isFinite(variacion) && variacion < 0;
+    if(filtro === "sinprecio") return !Number.isFinite(precio) || precio === 0;
+    if(filtro === "cartera") return ticker && carteraTickers.has(ticker);
+    if(filtro === "seguimiento") return ticker && seguimientoTickers.has(ticker);
+    return true;
+  });
+}
+
+function renderResumenCotizacionOnline(datos){
+  const resumen = el("resumenCotizacionOnline");
+  if(!resumen) return;
+
+  const precios = datos.map(getPrecioCotizacionOnline);
+  const variaciones = datos.map(getVariacionCotizacionOnline).filter(Number.isFinite);
+  const conPrecio = precios.filter(v=>Number.isFinite(v) && v !== 0).length;
+  const suben = variaciones.filter(v=>v > 0).length;
+  const bajan = variaciones.filter(v=>v < 0).length;
+  const sinCambio = variaciones.filter(v=>v === 0).length;
+
+  resumen.innerHTML = `
+    <article class="stat"><span>Total valores</span><strong>${datos.length}</strong></article>
+    <article class="stat"><span>Con precio válido</span><strong class="good">${conPrecio}</strong></article>
+    <article class="stat"><span>Sin precio</span><strong class="${datos.length - conPrecio ? 'warn' : 'good'}">${datos.length - conPrecio}</strong></article>
+    <article class="stat"><span>Suben / bajan / sin cambio</span><strong><span class="good">${suben}</span> / <span class="bad">${bajan}</span> / ${sinCambio}</strong></article>
+  `;
+}
+
+function renderCotizacionOnline(){
+  const head = el("tablaCotizacionOnlineHead");
+  const body = el("tablaCotizacionOnline");
+  const actualizada = el("cotizacionOnlineActualizada");
+  const status = el("cotizacionOnlineStatus");
+  if(!head || !body) return;
+
+  const datos = getCotizacionOnlineDatos();
+  const filtrados = filtrarCotizacionOnline(datos);
+  const columnas = getCotizacionOnlineColumnas(filtrados);
+  const carteraTickers = new Set(agruparCartera().map(g=>normalizarTicker(g.ticker)));
+  const seguimientoTickers = new Set(getSeguimiento().map(s=>normalizarTicker(s.ticker)));
+
+  if(actualizada){
+    actualizada.textContent = db.cotizacionOnline?.updatedAt
+      ? `Última descarga: ${formatFechaHora(db.cotizacionOnline.updatedAt)}`
+      : "Sin actualizar";
+  }
+  if(status){
+    status.textContent = db.cotizacionOnline?.error
+      ? `Aviso: ${db.cotizacionOnline.error}`
+      : datos.length
+        ? `Mostrando ${filtrados.length} de ${datos.length} filas descargadas desde Google Sheets.`
+        : "Pulsa “Actualizar desde Google” para descargar los datos del Excel.";
+  }
+
+  renderResumenCotizacionOnline(datos);
+
+  if(!datos.length){
+    head.innerHTML = "";
+    body.innerHTML = `<tr><td class="muted">No hay datos online descargados todavía.</td></tr>`;
+    return;
+  }
+
+  if(!filtrados.length){
+    head.innerHTML = "";
+    body.innerHTML = `<tr><td class="muted">No hay filas que coincidan con el filtro actual.</td></tr>`;
+    return;
+  }
+
+  head.innerHTML = `<tr><th>Origen</th>${columnas.map(col=>`<th>${escaparHtml(col)}</th>`).join("")}</tr>`;
+  body.innerHTML = filtrados.map(row=>{
+    const variacion = getVariacionCotizacionOnline(row);
+    const estadoClass = Number.isFinite(variacion) && variacion > 0 ? "good" : Number.isFinite(variacion) && variacion < 0 ? "bad" : "";
+    const origen = getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers);
+    return `<tr>
+      <td><span class="online-origin">${escaparHtml(origen)}</span></td>
+      ${columnas.map(col=>`<td class="${estadoClass}">${escaparHtml(textoPlano(getValorCotizacionOnlineCelda(row, col))) || "-"}</td>`).join("")}
+    </tr>`;
+  }).join("");
+
+  marcarTablasResponsive();
+}
+
+async function actualizarCotizacionOnline(){
+  if(actualizarCotizacionOnline.enCurso) return;
+  actualizarCotizacionOnline.enCurso = true;
+  try{
+    setStatus("Actualizando cotización online desde Google Sheets...");
+    const datos = await descargarCotizacionOnlineGoogle();
+    db.cotizacionOnline = {
+      datos,
+      updatedAt: new Date().toISOString(),
+      error: null
+    };
+    saveDB(db);
+    renderCotizacionOnline();
+    setStatus("Cotización online actualizada desde Google Sheets.");
+  }catch(e){
+    db.cotizacionOnline = {
+      ...defaultData.cotizacionOnline,
+      ...(db.cotizacionOnline || {}),
+      error: e.message
+    };
+    saveDB(db);
+    renderCotizacionOnline();
+    alert(e.message);
+    setStatus("No se pudo actualizar cotización online.");
+  }finally{
+    actualizarCotizacionOnline.enCurso = false;
+  }
+}
+
+async function copiarCotizacionOnline(){
+  const datos = getCotizacionOnlineDatos();
+  if(!datos.length){
+    setStatus("No hay datos de cotización online para copiar.");
+    return;
+  }
+  await navigator.clipboard.writeText(JSON.stringify(datos, null, 2));
+  setStatus("Datos de cotización online copiados.");
 }
 
 function actualizarExchange(ticker, exchange){

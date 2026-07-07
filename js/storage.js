@@ -3,6 +3,11 @@ const DB_KEY = "mibolsa_v5_data";
 const defaultData = {
   movimientos: [],
   cotizaciones: {},
+  cotizacionOnline: {
+    datos: [],
+    updatedAt: null,
+    error: null
+  },
   ajustes: {
     provider: "manual",
     googleUrl: "",
@@ -25,6 +30,10 @@ function loadDB(){
     return {
       movimientos: parsed.movimientos || [],
       cotizaciones: parsed.cotizaciones || {},
+      cotizacionOnline: {
+        ...defaultData.cotizacionOnline,
+        ...(parsed.cotizacionOnline || {})
+      },
       ajustes: {...defaultData.ajustes, ...(parsed.ajustes || {})},
       recomendacionesIA: parsed.recomendacionesIA || null
     };

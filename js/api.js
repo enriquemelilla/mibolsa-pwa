@@ -153,3 +153,26 @@ async function descargarCotizacion(provider, apiKey, symbol, exchange=""){
 
   throw new Error("Proveedor no reconocido.");
 }
+
+async function descargarCotizacionOnlineGoogle(){
+  const googleUrl = db.ajustes.googleUrl || "";
+
+  if(!googleUrl){
+    throw new Error("Falta la URL de Google Apps Script en Ajustes.");
+  }
+
+  const res = await fetch(googleUrl);
+
+  if(!res.ok){
+    throw new Error("Error Google Finance / Sheets: " + res.status);
+  }
+
+  const data = await leerJsonSeguro(res, "Google Finance / Sheets");
+  const lista = Array.isArray(data) ? data : data.datos;
+
+  if(!Array.isArray(lista)){
+    throw new Error("Google no devolvió una lista válida de cotizaciones.");
+  }
+
+  return lista;
+}
