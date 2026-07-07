@@ -1052,18 +1052,44 @@ function getVariacionCotizacionOnline(row){
   return normalizarNumeroDesdeExcel(value);
 }
 
+function getVariantesTickerCotizacionOnline(ticker){
+  const normalizado = normalizarTicker(ticker);
+  if(!normalizado) return [];
+
+  const sinPrefijoMercado = normalizado.includes(":") ? normalizado.split(":").pop() : normalizado;
+  const sinSufijoMercado = sinPrefijoMercado.split(".")[0];
+  return [...new Set([normalizado, sinPrefijoMercado, sinSufijoMercado].filter(Boolean))];
+}
+
+function crearIndiceTickers(tickers){
+  return new Set(tickers.flatMap(getVariantesTickerCotizacionOnline));
+}
+
+function estaTickerEnIndice(ticker, indice){
+  return getVariantesTickerCotizacionOnline(ticker).some(variante=>indice.has(variante));
+}
+
 function getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers){
   const ticker = getTickerCotizacionOnline(row);
-  if(ticker && carteraTickers.has(ticker)) return "Mi cartera";
-  if(ticker && seguimientoTickers.has(ticker)) return "Seguimiento";
+  const enCartera = estaTickerEnIndice(ticker, carteraTickers);
+  const enSeguimiento = estaTickerEnIndice(ticker, seguimientoTickers);
+  if(enCartera && enSeguimiento) return "Cartera y seguimiento";
+  if(enCartera) return "Mi cartera";
+  if(enSeguimiento) return "Seguimiento";
   return "Solo Excel";
+}
+
+function getClaseOrigenCotizacionOnline(origen){
+  if(origen.includes("Cartera")) return "portfolio";
+  if(origen === "Seguimiento") return "watchlist";
+  return "external";
 }
 
 function filtrarCotizacionOnline(datos){
   const q = (el("buscarCotizacionOnline")?.value || "").trim().toLowerCase();
   const filtro = el("filtroCotizacionOnline")?.value || "todos";
-  const carteraTickers = new Set(agruparCartera().map(g=>normalizarTicker(g.ticker)));
-  const seguimientoTickers = new Set(getSeguimiento().map(s=>normalizarTicker(s.ticker)));
+  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
+  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
 
   return datos.filter(row=>{
     const texto = textoPlano(row).toLowerCase();
@@ -1076,8 +1102,8 @@ function filtrarCotizacionOnline(datos){
     if(filtro === "suben") return Number.isFinite(variacion) && variacion > 0;
     if(filtro === "bajan") return Number.isFinite(variacion) && variacion < 0;
     if(filtro === "sinprecio") return !Number.isFinite(precio) || precio === 0;
-    if(filtro === "cartera") return ticker && carteraTickers.has(ticker);
-    if(filtro === "seguimiento") return ticker && seguimientoTickers.has(ticker);
+    if(filtro === "cartera") return ticker && estaTickerEnIndice(ticker, carteraTickers);
+    if(filtro === "seguimiento") return ticker && estaTickerEnIndice(ticker, seguimientoTickers);
     return true;
   });
 }
@@ -1086,6 +1112,14 @@ function renderResumenCotizacionOnline(datos){
   const resumen = el("resumenCotizacionOnline");
   if(!resumen) return;
 
+  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
+  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
+  const enCartera = datos.filter(row=>estaTickerEnIndice(getTickerCotizacionOnline(row), carteraTickers)).length;
+  const enSeguimiento = datos.filter(row=>estaTickerEnIndice(getTickerCotizacionOnline(row), seguimientoTickers)).length;
+  const soloExcel = datos.length - new Set(datos
+    .map((row, index)=>({index, origen:getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers)}))
+    .filter(item=>item.origen !== "Solo Excel")
+    .map(item=>item.index)).size;
   const precios = datos.map(getPrecioCotizacionOnline);
   const variaciones = datos.map(getVariacionCotizacionOnline).filter(Number.isFinite);
   const conPrecio = precios.filter(v=>Number.isFinite(v) && v !== 0).length;
@@ -1098,6 +1132,9 @@ function renderResumenCotizacionOnline(datos){
     <article class="stat"><span>Con precio válido</span><strong class="good">${conPrecio}</strong></article>
     <article class="stat"><span>Sin precio</span><strong class="${datos.length - conPrecio ? 'warn' : 'good'}">${datos.length - conPrecio}</strong></article>
     <article class="stat"><span>Suben / bajan / sin cambio</span><strong><span class="good">${suben}</span> / <span class="bad">${bajan}</span> / ${sinCambio}</strong></article>
+    <article class="stat"><span>También en Mi cartera</span><strong class="good">${enCartera}</strong></article>
+    <article class="stat"><span>También en Seguimiento</span><strong class="warn">${enSeguimiento}</strong></article>
+    <article class="stat"><span>Solo en Excel</span><strong>${soloExcel}</strong></article>
   `;
 }
 
@@ -1111,8 +1148,8 @@ function renderCotizacionOnline(){
   const datos = getCotizacionOnlineDatos();
   const filtrados = filtrarCotizacionOnline(datos);
   const columnas = getCotizacionOnlineColumnas(filtrados);
-  const carteraTickers = new Set(agruparCartera().map(g=>normalizarTicker(g.ticker)));
-  const seguimientoTickers = new Set(getSeguimiento().map(s=>normalizarTicker(s.ticker)));
+  const carteraTickers = crearIndiceTickers(agruparCartera().map(g=>g.ticker));
+  const seguimientoTickers = crearIndiceTickers(getSeguimiento().map(s=>s.ticker));
 
   if(actualizada){
     actualizada.textContent = db.cotizacionOnline?.updatedAt
@@ -1146,8 +1183,9 @@ function renderCotizacionOnline(){
     const variacion = getVariacionCotizacionOnline(row);
     const estadoClass = Number.isFinite(variacion) && variacion > 0 ? "good" : Number.isFinite(variacion) && variacion < 0 ? "bad" : "";
     const origen = getOrigenCotizacionOnline(row, carteraTickers, seguimientoTickers);
-    return `<tr>
-      <td><span class="online-origin">${escaparHtml(origen)}</span></td>
+    const claseOrigen = getClaseOrigenCotizacionOnline(origen);
+    return `<tr class="online-row-${claseOrigen}">
+      <td><span class="online-origin ${claseOrigen}">${escaparHtml(origen)}</span></td>
       ${columnas.map(col=>`<td class="${estadoClass}">${escaparHtml(textoPlano(getValorCotizacionOnlineCelda(row, col))) || "-"}</td>`).join("")}
     </tr>`;
   }).join("");
