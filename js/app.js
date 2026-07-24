@@ -2,6 +2,7 @@ let db = loadDB();
 let deferredPrompt = null;
 let intradiaViewMode = localStorage.getItem("intradiaViewMode") || "detalle";
 let recomendacionesIAViewMode = localStorage.getItem("recomendacionesIAViewMode") || "detalle";
+let estadoActualizacionCotizaciones = { estado: "success", errores: [] };
 
 const el = (id) => document.getElementById(id);
 
@@ -61,6 +62,44 @@ function getUltimaActualizacionCotizaciones(){
   return new Date(Math.max(...fechas)).toISOString();
 }
 
+function actualizarIndicadorCotizaciones(){
+  const { estado, errores } = estadoActualizacionCotizaciones;
+  document.querySelectorAll("[data-quote-status]").forEach(indicador=>{
+    indicador.classList.toggle("is-active", indicador.dataset.quoteStatus === estado);
+  });
+
+  const botonErrores = el("btnErroresCotizaciones");
+  if(botonErrores){
+    const hayErrores = estado === "error" && errores.length > 0;
+    botonErrores.disabled = !hayErrores;
+    botonErrores.setAttribute("aria-label", hayErrores
+      ? `Ver ${errores.length} error${errores.length === 1 ? "" : "es"} de actualización`
+      : "No hay errores de actualización");
+    botonErrores.title = hayErrores ? "Ver errores de actualización" : "No hay errores de actualización";
+  }
+}
+
+function establecerEstadoActualizacionCotizaciones(estado, errores = []){
+  estadoActualizacionCotizaciones = { estado, errores };
+  actualizarIndicadorCotizaciones();
+}
+
+function mostrarErroresCotizaciones(){
+  const errores = estadoActualizacionCotizaciones.errores;
+  if(estadoActualizacionCotizaciones.estado !== "error" || !errores.length) return;
+  const lista = el("listaErroresCotizaciones");
+  if(lista){
+    lista.innerHTML = errores.map(({ nombre, ticker, mensaje })=>
+      `<li><strong>${escaparHtml(nombre || ticker)}</strong>${nombre && ticker ? ` (${escaparHtml(ticker)})` : ""}: ${escaparHtml(mensaje)}</li>`
+    ).join("");
+  }
+  el("modalErroresCotizaciones")?.classList.remove("hidden");
+}
+
+function cerrarErroresCotizaciones(){
+  el("modalErroresCotizaciones")?.classList.add("hidden");
+}
+
 
 function marcarTablasResponsive(){
   document.querySelectorAll(".responsive-table").forEach(table=>{
@@ -112,6 +151,12 @@ function init(){
   bind("btnBorrarTodo", "click", borrarTodo);
   bind("btnActualizarTodasApi", "click", actualizarTodasApi);
   bind("btnRefrescarCotizaciones", "click", renderAll);
+  bind("btnErroresCotizaciones", "click", mostrarErroresCotizaciones);
+  bind("btnCerrarErroresCotizaciones", "click", cerrarErroresCotizaciones);
+  bind("btnAceptarErroresCotizaciones", "click", cerrarErroresCotizaciones);
+  bind("modalErroresCotizaciones", "click", (event)=>{
+    if(event.target === event.currentTarget) cerrarErroresCotizaciones();
+  });
   bind("btnActualizarCotizacionOnline", "click", actualizarCotizacionOnline);
   bind("btnRefrescarCotizacionOnline", "click", renderCotizacionOnline);
   bind("btnCopiarCotizacionOnline", "click", copiarCotizacionOnline);
@@ -142,6 +187,9 @@ function init(){
       deferredPrompt = null;
       el("btnInstall").classList.add("hidden");
     }
+  });
+  document.addEventListener("keydown", (event)=>{
+    if(event.key === "Escape") cerrarErroresCotizaciones();
   });
 
   cargarAjustesForm();
@@ -978,6 +1026,14 @@ function renderCotizaciones(){
   const tbody = el("tablaCotizaciones");
   const valores = getTodosValoresCotizables();
   const carteraPorTicker = Object.fromEntries(agruparCartera().map(g=>[normalizarTicker(g.ticker), g]));
+  const actualizada = el("cotizacionesActualizadas");
+  const ultimaActualizacion = getUltimaActualizacionCotizaciones();
+  if(actualizada){
+    actualizada.textContent = ultimaActualizacion
+      ? `Última actualización: ${formatFechaHora(ultimaActualizacion)}`
+      : "Cotizaciones sin actualizar";
+  }
+  actualizarIndicadorCotizaciones();
 
   tbody.innerHTML = valores.map(v=>{
     const cot = getCotizacion(v.ticker);
@@ -1341,22 +1397,43 @@ async function actualizarUnaApi(ticker){
 async function actualizarTodasApi(esAutomatico = false){
   if(actualizarTodasApi.enCurso) return;
   const valores = getTodosValoresCotizables();
-  if(!valores.length) return;
+  if(!valores.length){
+    establecerEstadoActualizacionCotizaciones("success");
+    if(!esAutomatico) setStatus("No hay valores para actualizar.");
+    return;
+  }
   actualizarTodasApi.enCurso = true;
+  establecerEstadoActualizacionCotizaciones("loading");
   if(esAutomatico) setStatus("Actualizando cotizaciones automáticamente...");
   try{
+    const errores = [];
     for(const v of valores){
       try{
         const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
         setCotizacion(v.ticker, r.price, db.ajustes.provider);
       }catch(e){
         console.warn("Error cotizando", v.ticker, e);
+        errores.push({
+          nombre: v.nombre,
+          ticker: v.ticker,
+          mensaje: e instanceof Error ? e.message : String(e)
+        });
       }
     }
     renderAll();
-    setStatus(esAutomatico
-      ? "Cotizaciones actualizadas automáticamente al abrir/visualizar la app."
-      : "Proceso de actualización API finalizado. Revisa si algún valor quedó sin actualizar.");
+    if(errores.length){
+      establecerEstadoActualizacionCotizaciones("error", errores);
+      setStatus(`Actualización finalizada con ${errores.length} error${errores.length === 1 ? "" : "es"}. Pulsa el indicador rojo para verlos.`);
+    }else{
+      establecerEstadoActualizacionCotizaciones("success");
+      setStatus(esAutomatico
+        ? "Cotizaciones actualizadas automáticamente al abrir/visualizar la app."
+        : "Todas las cotizaciones se han actualizado correctamente.");
+    }
+  }catch(e){
+    const mensaje = e instanceof Error ? e.message : String(e);
+    establecerEstadoActualizacionCotizaciones("error", [{ nombre: "Actualización general", ticker: "", mensaje }]);
+    setStatus("La actualización de cotizaciones no se ha podido completar.");
   } finally {
     actualizarTodasApi.enCurso = false;
   }
