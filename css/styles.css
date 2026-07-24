@@ -141,6 +141,29 @@ tr:hover td{background:rgba(15,23,42,.55)}
 .modal-content{
   width:min(560px, 100%);
 }
+.modal-title-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.modal-title-row h3{margin-top:0}
+.modal-close{
+  min-width:44px;
+  min-height:44px;
+  border:0;
+  border-radius:10px;
+  background:#475569;
+  color:var(--text);
+  cursor:pointer;
+  font-size:28px;
+  line-height:1;
+}
+.quote-error-list{
+  margin:12px 0;
+  padding-left:22px;
+}
+.quote-error-list li{margin:8px 0}
 .details-panel{
   margin-top:16px;
   border:1px solid var(--line);
@@ -681,6 +704,47 @@ button,
   font-size:13px;
   white-space:nowrap;
 }
+.quote-title-with-status{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.quote-title-with-status h2{margin-bottom:0}
+.quote-traffic-light{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:6px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#0f172a;
+}
+.quote-status-light{
+  display:block;
+  width:14px;
+  height:14px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  opacity:.3;
+  transition:opacity .2s, box-shadow .2s, transform .2s;
+}
+.quote-status-light[data-quote-status="success"]{background:var(--good)}
+.quote-status-light[data-quote-status="loading"]{background:var(--warn)}
+.quote-status-light[data-quote-status="error"]{background:var(--bad)}
+.quote-status-light.is-active{
+  opacity:1;
+  box-shadow:0 0 0 3px rgba(248,250,252,.12), 0 0 12px currentColor;
+}
+.quote-status-error{cursor:pointer}
+.quote-status-error:not(:disabled):hover,
+.quote-status-error:not(:disabled):focus-visible{
+  transform:scale(1.18);
+  outline:2px solid var(--text);
+  outline-offset:3px;
+}
+.quote-status-error:disabled{cursor:default}
 
 .dashboard-summary-group{
   margin-top:12px;

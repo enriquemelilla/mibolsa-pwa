@@ -214,7 +214,17 @@
 
       <section id="view-cotizaciones" class="view">
         <div class="card">
-          <h2>Cotizaciones</h2>
+          <div class="card-title-row">
+            <div class="quote-title-with-status">
+              <h2>Cotizaciones</h2>
+              <div class="quote-traffic-light" role="group" aria-label="Estado de la actualización de cotizaciones">
+                <span class="quote-status-light is-active" data-quote-status="success" aria-label="Actualización completada correctamente" title="Actualización completada correctamente"></span>
+                <span class="quote-status-light" data-quote-status="loading" aria-label="Actualización en curso" title="Actualización en curso"></span>
+                <button id="btnErroresCotizaciones" class="quote-status-light quote-status-error" data-quote-status="error" type="button" disabled aria-label="No hay errores de actualización" title="No hay errores de actualización"></button>
+              </div>
+            </div>
+            <span id="cotizacionesActualizadas" class="quote-updated muted">Cotizaciones sin actualizar</span>
+          </div>
           <p class="muted">Puedes introducir cotizaciones manualmente o descargarlas por API para valores de cartera y seguimiento.</p>
           <div class="actions">
             <button class="btn primary" id="btnActualizarTodasApi">Descargar todas por API</button>
@@ -468,6 +478,20 @@
       </label>
       <div class="actions">
         <button id="btnAceptarAvisoIA" class="btn primary" type="button">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalErroresCotizaciones" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalErroresCotizacionesTitulo">
+    <div class="modal-content card">
+      <div class="modal-title-row">
+        <h3 id="modalErroresCotizacionesTitulo">Errores al actualizar cotizaciones</h3>
+        <button id="btnCerrarErroresCotizaciones" class="modal-close" type="button" aria-label="Cerrar errores">×</button>
+      </div>
+      <p class="muted">No se han podido actualizar los siguientes valores:</p>
+      <ul id="listaErroresCotizaciones" class="quote-error-list"></ul>
+      <div class="actions">
+        <button id="btnAceptarErroresCotizaciones" class="btn primary" type="button">Cerrar</button>
       </div>
     </div>
   </div>
