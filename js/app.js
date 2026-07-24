@@ -726,11 +726,34 @@ function renderDashboard(){
       : "Cotizaciones sin actualizar";
   }
 
-  const resumenPosiciones = cartera.length ? cartera.map(g=>{
+  const resumenPosicion = g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
     return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)} (${formatearInteres(real.interes)})</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) + ' (' + formatearInteres(latente.interes) + ')' : '-'}</span></p>`;
-  }).join("") : `<p class="muted">Todavía no tienes cartera real. Añade una compra desde Movimientos.</p>`;
+  };
+  const resumenSeguimiento = s=>{
+    const cotizacion = getCotizacion(s.ticker);
+    return `<p><strong>${s.nombre}</strong>: 0 acciones · Cotización: ${cotizacion ? money(cotizacion.price, db.ajustes.moneda) : "sin dato"} · Valor actual: - · <span>Real -</span> · <span>Latente -</span></p>`;
+  };
+  const posicionesConAcciones = cartera.filter(g=>g.cantidadNeta > 0);
+  const posicionesSinAcciones = cartera.filter(g=>g.cantidadNeta <= 0);
+  const valoresSinAcciones = [
+    ...posicionesSinAcciones.map(resumenPosicion),
+    ...getSeguimiento().map(resumenSeguimiento)
+  ];
+  const resumenPosiciones = `
+    <details class="dashboard-summary-group" open>
+      <summary>Tengo acciones <span>${posicionesConAcciones.length}</span></summary>
+      <div class="dashboard-summary-group-content">
+        ${posicionesConAcciones.length ? posicionesConAcciones.map(resumenPosicion).join("") : '<p class="muted">No tienes valores con acciones actualmente.</p>'}
+      </div>
+    </details>
+    <details class="dashboard-summary-group">
+      <summary>No tengo acciones <span>${valoresSinAcciones.length}</span></summary>
+      <div class="dashboard-summary-group-content">
+        ${valoresSinAcciones.length ? valoresSinAcciones.join("") : '<p class="muted">No tienes valores sin acciones.</p>'}
+      </div>
+    </details>`;
   const resumenBeneficios = `<p><strong>Beneficio/pérdida real FIFO:</strong> Bruto ${money(beneficios.realizadoBruto, db.ajustes.moneda)} · Dividendos netos ${money(beneficios.dividendosNetos, db.ajustes.moneda)} · Retenciones/impuestos ${money(beneficios.impuestoRealizado, db.ajustes.moneda)} · Neto ${money(beneficios.realizadoNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesReal)}</p>
     <p><strong>Beneficio/pérdida latente:</strong> Bruto ${money(beneficios.latenteBruto, db.ajustes.moneda)} · Gastos venta estimados ${money(beneficios.gastosVentaEstimados, db.ajustes.moneda)} · Impuestos ${money(beneficios.impuestoLatente, db.ajustes.moneda)} · Neto ${money(beneficios.latenteNeto, db.ajustes.moneda)} · ${formatearInteres(beneficios.interesLatente)}</p>`;
   el("dashboardResumen").innerHTML = resumenPosiciones + resumenBeneficios;
