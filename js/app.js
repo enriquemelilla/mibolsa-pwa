@@ -876,7 +876,8 @@ function renderMovimientos(){
 }
 
 function renderCartera(){
-  const contenedor = el("tablaCartera");
+  const contenedorActual = el("tablaCarteraActual");
+  const contenedorHistorico = el("tablaCarteraHistorica");
   const cartera = agruparCartera();
 
   let totalAcciones = 0;
@@ -913,7 +914,7 @@ function renderCartera(){
     `;
   }
 
-  contenedor.innerHTML = cartera.map(g=>{
+  const renderPosiciones = posiciones=>posiciones.map(g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
     const panelId = `cartera-${g.ticker}`;
@@ -960,9 +961,15 @@ function renderCartera(){
       </article>`;
   }).join("");
 
-  if(!cartera.length){
-    contenedor.innerHTML = `<p class="muted placeholder">No hay posiciones reales.</p>`;
-  }
+  const carteraActual = cartera.filter(g=>g.cantidadNeta > 0);
+  const carteraHistorica = cartera.filter(g=>g.cantidadNeta <= 0);
+
+  contenedorActual.innerHTML = carteraActual.length
+    ? renderPosiciones(carteraActual)
+    : `<p class="muted placeholder">No hay valores con acciones actualmente.</p>`;
+  contenedorHistorico.innerHTML = carteraHistorica.length
+    ? renderPosiciones(carteraHistorica)
+    : `<p class="muted placeholder">No hay valores históricos sin acciones.</p>`;
 }
 
 function mostrarDetalleCartera(ticker){
