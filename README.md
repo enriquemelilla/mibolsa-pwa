@@ -77,6 +77,7 @@ Esta versión está adaptada para ambos formatos:
 - Comparativa ahora tiene botón para plegar/desplegar.
 - Añadida barra de totales en Movimientos.
 - Añadida barra de totales en Mi cartera.
+- Mi cartera separa en desplegables la cartera actual y el histórico de posiciones sin acciones.
 - Añadida barra de totales en Comparativa.
 
 

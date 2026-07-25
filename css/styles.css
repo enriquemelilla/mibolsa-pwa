@@ -819,6 +819,35 @@ button,
   gap:12px;
 }
 
+.portfolio-sections{
+  display:grid;
+  gap:14px;
+}
+
+.portfolio-section-card{
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:rgba(15,23,42,.72);
+}
+
+.portfolio-section-header{
+  margin-bottom:0;
+}
+
+.portfolio-section-header h3,
+.portfolio-section-header p{
+  margin:0;
+}
+
+.portfolio-section-header p{
+  margin-top:4px;
+}
+
+.portfolio-section-card > .collapsible.open{
+  margin-top:12px;
+}
+
 .item-card{
   border:1px solid var(--line);
   border-radius:16px;
