@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v10-cartera-secciones";
+const CACHE_NAME = "mibolsa-v12-beneficio-actual-corregido";
 const ASSETS = [
   "./",
   "./index.html",

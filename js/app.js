@@ -759,6 +759,7 @@ function renderAll(){
 function renderDashboard(){
   const cartera = agruparCartera();
   const beneficios = calcularBeneficios(cartera);
+  const beneficioActual = beneficios.latenteNeto + beneficios.realizadoNeto;
 
   el("dashValorCartera").textContent = money(beneficios.valorActual, db.ajustes.moneda);
   el("dashInvertido").textContent = money(beneficios.invertidoAbierto, db.ajustes.moneda);
@@ -766,6 +767,8 @@ function renderDashboard(){
   el("dashBeneficio").className = beneficios.latenteNeto >= 0 ? "good" : "bad";
   el("dashRealizado").textContent = money(beneficios.realizadoNeto, db.ajustes.moneda);
   el("dashRealizado").className = beneficios.realizadoNeto >= 0 ? "good" : "bad";
+  el("dashBeneficioActual").textContent = money(beneficioActual, db.ajustes.moneda);
+  el("dashBeneficioActual").className = beneficioActual >= 0 ? "good" : "bad";
   el("dashSeguimiento").textContent = getSeguimiento().length;
   const ultimaActualizacion = getUltimaActualizacionCotizaciones();
   if(el("dashCotizacionesActualizadas")){
