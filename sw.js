@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v12-beneficio-actual-corregido";
+const CACHE_NAME = "mibolsa-v13-cotizaciones-rapidas";
 const ASSETS = [
   "./",
   "./index.html",
