@@ -210,6 +210,9 @@ function configurarAutoActualizacionCotizaciones(){
   const intentarActualizar = ()=>{
     if(!debeActualizarAlVisualizar()) return;
     if(document.visibilityState !== "visible") return;
+    const ahora = Date.now();
+    if(ahora - (actualizarTodasApi.ultimaAutomatica || 0) < 60000) return;
+    actualizarTodasApi.ultimaAutomatica = ahora;
     actualizarTodasApi(true);
   };
 
@@ -439,14 +442,14 @@ function getCotizacion(ticker){
   return db.cotizaciones[ticker] || null;
 }
 
-function setCotizacion(ticker, price, source="manual"){
+function setCotizacion(ticker, price, source="manual", guardar = true){
   if(!ticker || !price) return;
   db.cotizaciones[ticker] = {
     price: Number(price),
     source,
     updatedAt: new Date().toISOString()
   };
-  saveDB(db);
+  if(guardar) saveDB(db);
 }
 
 function compararMovimientosCronologicos(a, b){
@@ -780,11 +783,11 @@ function renderDashboard(){
   const resumenPosicion = g=>{
     const real = calcularResultadoReal(g);
     const latente = calcularResultadoLatente(g);
-    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)} (${formatearInteres(real.interes)})</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) + ' (' + formatearInteres(latente.interes) + ')' : '-'}</span></p>`;
+    return `<p><strong>${g.nombre}</strong>: ${num(g.cantidadNeta, 0)} acciones · Cotización: ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "sin dato"} · Actualizada: ${latente.cot ? formatFechaHora(latente.cot.updatedAt) : "-"} · Valor actual: ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "-"} · <span class="${real.neto >= 0 ? 'good' : 'bad'}">Real ${money(real.neto, db.ajustes.moneda)} (${formatearInteres(real.interes)})</span> · <span class="${latente.neto >= 0 ? 'good' : 'bad'}">Latente ${latente.cot ? money(latente.neto, db.ajustes.moneda) + ' (' + formatearInteres(latente.interes) + ')' : '-'}</span></p>`;
   };
   const resumenSeguimiento = s=>{
     const cotizacion = getCotizacion(s.ticker);
-    return `<p><strong>${s.nombre}</strong>: 0 acciones · Cotización: ${cotizacion ? money(cotizacion.price, db.ajustes.moneda) : "sin dato"} · Valor actual: - · <span>Real -</span> · <span>Latente -</span></p>`;
+    return `<p><strong>${s.nombre}</strong>: 0 acciones · Cotización: ${cotizacion ? money(cotizacion.price, db.ajustes.moneda) : "sin dato"} · Actualizada: ${cotizacion ? formatFechaHora(cotizacion.updatedAt) : "-"} · Valor actual: - · <span>Real -</span> · <span>Latente -</span></p>`;
   };
   const posicionesConAcciones = cartera.filter(g=>g.cantidadNeta > 0);
   const posicionesSinAcciones = cartera.filter(g=>g.cantidadNeta <= 0);
@@ -929,6 +932,7 @@ function renderCartera(){
             <span><strong>${g.nombre}</strong> <small class="muted">${g.ticker}</small></span>
             <span><strong>Acciones netas:</strong> ${num(g.cantidadNeta,0)}</span>
             <span><strong>Valor actual:</strong> ${latente.cot ? money(latente.valorActual, db.ajustes.moneda) : "Sin cotización"}</span>
+            <span><strong>Cotización actualizada:</strong> ${latente.cot ? formatFechaHora(latente.cot.updatedAt) : "-"}</span>
           </div>
         </div>
         <div id="${panelId}" class="collapsible closed item-card-body">
@@ -939,6 +943,7 @@ function renderCartera(){
             <span><strong>Invertido abierto:</strong> ${money(g.invertidoNeto, db.ajustes.moneda)}</span>
             <span><strong>Precio medio:</strong> ${money(g.precioMedio, db.ajustes.moneda)}</span>
             <span><strong>Última cotización:</strong> ${latente.cot ? money(latente.cot.price, db.ajustes.moneda) : "Sin cotización"}</span>
+            <span><strong>Fecha y hora cotización:</strong> ${latente.cot ? formatFechaHora(latente.cot.updatedAt) : "-"}</span>
             <span class="${real.neto>=0?'good':'bad'}"><strong>Real:</strong> ${money(real.neto, db.ajustes.moneda)} · ${formatearInteres(real.interes)}</span>
             <span class="${latente.neto>=0?'good':'bad'}"><strong>Latente:</strong> ${latente.cot ? money(latente.neto, db.ajustes.moneda) + " · " + formatearInteres(latente.interes) : "-"}</span>
           </div>
@@ -1417,19 +1422,56 @@ async function actualizarTodasApi(esAutomatico = false){
   if(esAutomatico) setStatus("Actualizando cotizaciones automáticamente...");
   try{
     const errores = [];
-    for(const v of valores){
+    const registrarError = (v, e)=>{
+      console.warn("Error cotizando", v.ticker, e);
+      errores.push({
+        nombre: v.nombre,
+        ticker: v.ticker,
+        mensaje: e instanceof Error ? e.message : String(e)
+      });
+    };
+    const guardarResultado = (v, price)=>{
+      setCotizacion(v.ticker, price, db.ajustes.provider, false);
+    };
+
+    if(db.ajustes.provider === "google"){
       try{
-        const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
-        setCotizacion(v.ticker, r.price, db.ajustes.provider);
-      }catch(e){
-        console.warn("Error cotizando", v.ticker, e);
-        errores.push({
-          nombre: v.nombre,
-          ticker: v.ticker,
-          mensaje: e instanceof Error ? e.message : String(e)
+        // Google devuelve todas las filas juntas: una única descarga evita repetir
+        // la misma petición completa por cada acción.
+        const lista = await descargarCotizacionOnlineGoogle();
+        const precios = new Map(lista.map(item=>[
+          normalizarTicker(item.ticker || item.symbol || item.simbolo),
+          Number(item.price ?? item.precio ?? item.cotizacion)
+        ]));
+        valores.forEach(v=>{
+          const simbolos = [v.apiSymbol, v.ticker].map(normalizarTicker).filter(Boolean);
+          const price = simbolos.map(simbolo=>precios.get(simbolo)).find(precio=>Number.isFinite(precio) && precio > 0);
+          if(price) guardarResultado(v, price);
+          else registrarError(v, new Error(`Google no encontró cotización válida para ${v.apiSymbol || v.ticker}`));
         });
+      }catch(e){
+        valores.forEach(v=>registrarError(v, e));
       }
+    }else{
+      // Varias consultas en paralelo reducen mucho la espera sin lanzar una
+      // ráfaga ilimitada. Alpha Vantage se mantiene secuencial por sus límites.
+      const concurrencia = db.ajustes.provider === "alphavantage" ? 1 : 4;
+      let siguiente = 0;
+      const worker = async ()=>{
+        while(siguiente < valores.length){
+          const v = valores[siguiente++];
+          try{
+            const r = await descargarCotizacion(db.ajustes.provider, db.ajustes.apiKey, v.apiSymbol, v.exchange);
+            guardarResultado(v, r.price);
+          }catch(e){
+            registrarError(v, e);
+          }
+        }
+      };
+      await Promise.all(Array.from({length: Math.min(concurrencia, valores.length)}, worker));
     }
+    // Persistir una sola vez evita bloquear el navegador por cada cotización.
+    saveDB(db);
     renderAll();
     if(errores.length){
       establecerEstadoActualizacionCotizaciones("error", errores);
