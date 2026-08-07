@@ -1175,7 +1175,21 @@ button,
   box-shadow:inset 4px 0 0 rgba(245, 158, 11, 0.75);
 }
 
+.velas-toolbar{display:grid;grid-template-columns:repeat(3,minmax(150px,240px));gap:12px;margin:16px 0}
+.velas-navegacion{display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0}
+.vela-registro{max-width:760px;margin:auto}
+.vela-registro h3{margin-top:0}.vela-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.vela-dato{padding:10px;background:#111827;border-radius:10px}.vela-dato span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+.grafico-velas{display:flex;align-items:stretch;gap:8px;min-height:360px;overflow-x:auto;padding:28px 16px 10px;border:1px solid var(--line);border-radius:14px;background:#0f172a}
+.vela-columna{position:relative;flex:1 0 36px;min-width:36px;height:300px;border-bottom:1px solid var(--line)}
+.vela-mecha{position:absolute;width:2px;left:50%;transform:translateX(-50%);background:currentColor}
+.vela-cuerpo{position:absolute;width:16px;min-height:3px;left:50%;transform:translateX(-50%);background:currentColor;border:1px solid currentColor}
+.vela-alcista{color:var(--good)}.vela-bajista{color:var(--bad)}
+.vela-etiqueta{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:10px;color:var(--muted);white-space:nowrap}
+.grafico-vacio{margin:auto;color:var(--muted);text-align:center}
+
 @media(max-width:520px){
+  .velas-toolbar{grid-template-columns:1fr}
   .online-toolbar{
     flex-direction:column;
   }

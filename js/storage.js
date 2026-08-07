@@ -8,6 +8,7 @@ const defaultData = {
     updatedAt: null,
     error: null
   },
+  velas: [],
   ajustes: {
     provider: "manual",
     googleUrl: "",
@@ -34,6 +35,7 @@ function loadDB(){
         ...defaultData.cotizacionOnline,
         ...(parsed.cotizacionOnline || {})
       },
+      velas: Array.isArray(parsed.velas) ? parsed.velas : [],
       ajustes: {...defaultData.ajustes, ...(parsed.ajustes || {})},
       recomendacionesIA: parsed.recomendacionesIA || null
     };

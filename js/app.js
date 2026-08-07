@@ -3,6 +3,8 @@ let deferredPrompt = null;
 let intradiaViewMode = localStorage.getItem("intradiaViewMode") || "detalle";
 let recomendacionesIAViewMode = localStorage.getItem("recomendacionesIAViewMode") || "detalle";
 let estadoActualizacionCotizaciones = { estado: "success", errores: [] };
+let velasViewMode = localStorage.getItem("velasViewMode") || "registros";
+let velaRegistroActual = 0;
 
 const el = (id) => document.getElementById(id);
 
@@ -162,6 +164,14 @@ function init(){
   bind("btnCopiarCotizacionOnline", "click", copiarCotizacionOnline);
   bind("buscarCotizacionOnline", "input", renderCotizacionOnline);
   bind("filtroCotizacionOnline", "change", renderCotizacionOnline);
+  bind("btnCargarDatosDiarios", "click", cargarDatosDiarios);
+  bind("btnVelasVistaRegistros", "click", ()=>setVelasViewMode("registros"));
+  bind("btnVelasVistaGrafico", "click", ()=>setVelasViewMode("grafico"));
+  bind("velasFechaDesde", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
+  bind("velasFechaHasta", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
+  bind("velasValor", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
+  bind("btnVelaAnterior", "click", ()=>moverRegistroVela(-1));
+  bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -752,6 +762,7 @@ function renderAll(){
   renderSeguimiento();
   renderCotizaciones();
   renderCotizacionOnline();
+  renderVelas();
   renderComparativa();
   renderRecomendacionesIA();
   renderOperacionesIntradia();
@@ -1357,6 +1368,128 @@ async function actualizarCotizacionOnline(){
   }finally{
     actualizarCotizacionOnline.enCurso = false;
   }
+}
+
+function getCampoNumericoVela(row, patrones){
+  return normalizarNumeroDesdeExcel(buscarValorPorColumnas(row, patrones));
+}
+
+function crearVelaDiaria(row, fecha, capturadaEn){
+  const cierre = getPrecioCotizacionOnline(row);
+  const aperturaLeida = getCampoNumericoVela(row, ["apertura", "open"]);
+  const maximoLeido = getCampoNumericoVela(row, ["maximo", "máximo", "high"]);
+  const minimoLeido = getCampoNumericoVela(row, ["minimo", "mínimo", "low"]);
+  const variacion = getVariacionCotizacionOnline(row);
+  const aperturaCalculada = Number.isFinite(cierre) && Number.isFinite(variacion) && variacion !== -100
+    ? cierre / (1 + variacion / 100)
+    : cierre;
+  const apertura = Number.isFinite(aperturaLeida) ? aperturaLeida : aperturaCalculada;
+  const extremos = [apertura, cierre].filter(Number.isFinite);
+  return {
+    id: `${fecha}_${getTickerCotizacionOnline(row) || getNombreCotizacionOnline(row) || uid()}`,
+    fecha,
+    capturadaEn,
+    ticker: getTickerCotizacionOnline(row),
+    nombre: getNombreCotizacionOnline(row) || getTickerCotizacionOnline(row) || "Sin identificar",
+    apertura,
+    maximo: Number.isFinite(maximoLeido) ? maximoLeido : Math.max(...extremos),
+    minimo: Number.isFinite(minimoLeido) ? minimoLeido : Math.min(...extremos),
+    cierre,
+    datos: structuredClone(row)
+  };
+}
+
+async function cargarDatosDiarios(){
+  const boton = el("btnCargarDatosDiarios");
+  if(boton?.disabled) return;
+  if(boton) boton.disabled = true;
+  try{
+    setStatus("Descargando los datos del cierre diario...");
+    const datos = await descargarCotizacionOnlineGoogle();
+    const capturadaEn = new Date().toISOString();
+    const fecha = today();
+    const nuevas = datos.map(row=>crearVelaDiaria(row, fecha, capturadaEn));
+    const ids = new Set(nuevas.map(item=>item.id));
+    db.velas = [...(db.velas || []).filter(item=>!ids.has(item.id)), ...nuevas];
+    db.cotizacionOnline = { datos, updatedAt: capturadaEn, error: null };
+    saveDB(db);
+    velaRegistroActual = 0;
+    renderCotizacionOnline();
+    renderVelas();
+    setStatus(`Cierre diario del ${fecha} guardado: ${nuevas.length} valores.`);
+  }catch(e){
+    setStatus("No se pudieron cargar los datos diarios.");
+    alert(e.message);
+  }finally{
+    if(boton) boton.disabled = false;
+  }
+}
+
+function getVelasFiltradas(){
+  const desde = el("velasFechaDesde")?.value || "";
+  const hasta = el("velasFechaHasta")?.value || "";
+  const valor = el("velasValor")?.value || "";
+  return [...(db.velas || [])].filter(item=>(!desde || item.fecha >= desde) && (!hasta || item.fecha <= hasta) && (!valor || `${item.ticker}|${item.nombre}` === valor))
+    .sort((a,b)=>b.fecha.localeCompare(a.fecha) || a.nombre.localeCompare(b.nombre));
+}
+
+function setVelasViewMode(mode){
+  velasViewMode = mode;
+  localStorage.setItem("velasViewMode", mode);
+  renderVelas();
+}
+
+function moverRegistroVela(delta){
+  const total = getVelasFiltradas().length;
+  velaRegistroActual = Math.max(0, Math.min(total - 1, velaRegistroActual + delta));
+  renderVelas();
+}
+
+function renderVelas(){
+  const contenedor = el("velaRegistro");
+  if(!contenedor) return;
+  const todas = db.velas || [];
+  const selector = el("velasValor");
+  const seleccion = selector.value;
+  const valores = [...new Map(todas.map(item=>[`${item.ticker}|${item.nombre}`, item])).entries()].sort((a,b)=>a[1].nombre.localeCompare(b[1].nombre));
+  selector.innerHTML = `<option value="">Todos</option>${valores.map(([key,item])=>`<option value="${escaparHtml(key)}">${escaparHtml(item.nombre)}${item.ticker ? ` (${escaparHtml(item.ticker)})` : ""}</option>`).join("")}`;
+  if(valores.some(([key])=>key === seleccion)) selector.value = seleccion;
+
+  const filtradas = getVelasFiltradas();
+  velaRegistroActual = Math.max(0, Math.min(filtradas.length - 1, velaRegistroActual));
+  el("velasVistaRegistros").classList.toggle("hidden", velasViewMode !== "registros");
+  el("velasVistaGrafico").classList.toggle("hidden", velasViewMode !== "grafico");
+  el("btnVelasVistaRegistros").classList.toggle("primary", velasViewMode === "registros");
+  el("btnVelasVistaGrafico").classList.toggle("primary", velasViewMode === "grafico");
+  el("velasActualizadas").textContent = todas.length ? `${new Set(todas.map(v=>v.fecha)).size} días guardados` : "Sin datos diarios";
+  el("velasStatus").textContent = `Mostrando ${filtradas.length} de ${todas.length} registros diarios.`;
+  el("velaPosicion").textContent = filtradas.length ? `${velaRegistroActual + 1} / ${filtradas.length}` : "0 / 0";
+  el("btnVelaAnterior").disabled = velaRegistroActual <= 0;
+  el("btnVelaSiguiente").disabled = velaRegistroActual >= filtradas.length - 1;
+
+  const actual = filtradas[velaRegistroActual];
+  contenedor.innerHTML = actual ? `<h3>${escaparHtml(actual.nombre)} ${actual.ticker ? `<small class="muted">${escaparHtml(actual.ticker)}</small>` : ""}</h3>
+    <p class="muted">Sesión ${escaparHtml(actual.fecha)} · guardada ${escaparHtml(formatFechaHora(actual.capturadaEn))}</p>
+    <div class="vela-datos">${[["Apertura",actual.apertura],["Máximo",actual.maximo],["Mínimo",actual.minimo],["Cierre",actual.cierre]].map(([label,value])=>`<div class="vela-dato"><span>${label}</span><strong>${Number.isFinite(value) ? num(value, 4) : "-"}</strong></div>`).join("")}</div>
+    <details><summary>Todos los datos del registro</summary><pre>${escaparHtml(JSON.stringify(actual.datos, null, 2))}</pre></details>` : "No hay datos diarios que coincidan con los filtros.";
+  renderGraficoVelas(filtradas);
+}
+
+function renderGraficoVelas(registros){
+  const grafico = el("graficoVelas");
+  const validos = registros.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse();
+  if(!validos.length){ grafico.innerHTML = `<p class="grafico-vacio">No hay datos OHLC válidos para dibujar.</p>`; return; }
+  if(!el("velasValor").value){ grafico.innerHTML = `<p class="grafico-vacio">Selecciona un valor para comparar sus velas por día.</p>`; return; }
+  const minimo = Math.min(...validos.map(v=>v.minimo));
+  const maximo = Math.max(...validos.map(v=>v.maximo));
+  const rango = maximo - minimo || 1;
+  const pos = value=>(maximo - value) / rango * 260 + 10;
+  grafico.innerHTML = validos.map(v=>{
+    const sube = v.cierre >= v.apertura;
+    const topMecha = pos(v.maximo), bottomMecha = pos(v.minimo);
+    const topCuerpo = pos(Math.max(v.apertura,v.cierre)), bottomCuerpo = pos(Math.min(v.apertura,v.cierre));
+    return `<div class="vela-columna ${sube ? "vela-alcista" : "vela-bajista"}" title="${escaparHtml(v.fecha)} · A ${num(v.apertura,4)} · M ${num(v.maximo,4)} · m ${num(v.minimo,4)} · C ${num(v.cierre,4)}"><span class="vela-mecha" style="top:${topMecha}px;height:${Math.max(2,bottomMecha-topMecha)}px"></span><span class="vela-cuerpo" style="top:${topCuerpo}px;height:${Math.max(3,bottomCuerpo-topCuerpo)}px"></span><span class="vela-etiqueta">${escaparHtml(v.fecha.slice(5))}</span></div>`;
+  }).join("");
 }
 
 async function copiarCotizacionOnline(){
@@ -2532,6 +2665,7 @@ function guardarAjustes(e){
 function exportarDatos(){
   const filename = "mibolsa_backup_" + today() + ".json";
   downloadFile(filename, JSON.stringify(db, null, 2));
+  setStatus(`Copia de seguridad exportada con ${(db.velas || []).length} registros de velas.`);
 }
 
 function importarDatos(e){
@@ -2542,16 +2676,26 @@ function importarDatos(e){
     try{
       const imported = JSON.parse(reader.result);
       db = {
-        movimientos: imported.movimientos || [],
-        cotizaciones: imported.cotizaciones || {},
+        ...structuredClone(defaultData),
+        ...imported,
+        movimientos: Array.isArray(imported.movimientos) ? imported.movimientos : [],
+        cotizaciones: imported.cotizaciones && typeof imported.cotizaciones === "object" ? imported.cotizaciones : {},
+        cotizacionOnline: {
+          ...defaultData.cotizacionOnline,
+          ...(imported.cotizacionOnline || {}),
+          datos: Array.isArray(imported.cotizacionOnline?.datos) ? imported.cotizacionOnline.datos : []
+        },
+        velas: Array.isArray(imported.velas) ? imported.velas : [],
         ajustes: {...defaultData.ajustes, ...(imported.ajustes || {})},
         recomendacionesIA: imported.recomendacionesIA || null
       };
       saveDB(db);
       renderAll();
-      setStatus("Datos importados.");
+      setStatus(`Datos importados. Recuperados ${db.velas.length} registros de velas.`);
     }catch(err){
       alert("Archivo no válido.");
+    }finally{
+      e.target.value = "";
     }
   };
   reader.readAsText(file);
