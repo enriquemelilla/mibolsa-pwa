@@ -28,6 +28,7 @@
       <button class="tab" data-view="seguimiento">Seguimiento</button>
       <button class="tab" data-view="cotizaciones">Cotizaciones</button>
       <button class="tab" data-view="cotizaciononline">Cotización online</button>
+      <button class="tab" data-view="velas">Velas</button>
       <button class="tab" data-view="comparativa">Comparativa</button>
       <button class="tab" data-view="recomendaciones">Recomendaciones IA</button>
       <button class="tab" data-view="intradia">Operaciones intradía</button>
@@ -317,6 +318,40 @@
               <thead id="tablaCotizacionOnlineHead"></thead>
               <tbody id="tablaCotizacionOnline"></tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-velas" class="view">
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <h2>Velas diarias</h2>
+              <p class="muted">Guarda una copia diaria de todos los datos de Cotización online y consulta su evolución por fechas.</p>
+            </div>
+            <span id="velasActualizadas" class="quote-updated muted">Sin datos diarios</span>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="btnCargarDatosDiarios" type="button">Cargar datos diarios</button>
+            <button class="btn secondary" id="btnVelasVistaRegistros" type="button">Vista registros</button>
+            <button class="btn secondary" id="btnVelasVistaGrafico" type="button">Gráfico de velas</button>
+          </div>
+          <p id="velasStatus" class="online-status muted"></p>
+          <div class="velas-toolbar">
+            <div><label for="velasFechaDesde">Desde</label><input id="velasFechaDesde" type="date"></div>
+            <div><label for="velasFechaHasta">Hasta</label><input id="velasFechaHasta" type="date"></div>
+            <div><label for="velasValor">Valor</label><select id="velasValor"><option value="">Todos</option></select></div>
+          </div>
+          <div id="velasVistaRegistros">
+            <div class="velas-navegacion">
+              <button class="btn secondary" id="btnVelaAnterior" type="button">← Anterior</button>
+              <strong id="velaPosicion">0 / 0</strong>
+              <button class="btn secondary" id="btnVelaSiguiente" type="button">Siguiente →</button>
+            </div>
+            <article id="velaRegistro" class="vela-registro placeholder">No hay datos diarios.</article>
+          </div>
+          <div id="velasVistaGrafico" class="hidden">
+            <div id="graficoVelas" class="grafico-velas" role="img" aria-label="Gráfico de velas diario"></div>
           </div>
         </div>
       </section>
