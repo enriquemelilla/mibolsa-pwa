@@ -1176,6 +1176,9 @@ button,
 }
 
 .velas-toolbar{display:grid;grid-template-columns:repeat(3,minmax(150px,240px));gap:12px;margin:16px 0}
+.velas-importacion{display:flex;align-items:end;gap:16px;margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0f172a}
+.velas-importacion>div{min-width:min(100%,320px)}.velas-importacion .hint{margin:0}.file-button{cursor:pointer}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .velas-navegacion{display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0}
 .vela-registro{max-width:760px;margin:auto}
 .vela-registro h3{margin-top:0}.vela-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
@@ -1190,6 +1193,7 @@ button,
 
 @media(max-width:520px){
   .velas-toolbar{grid-template-columns:1fr}
+  .velas-importacion{align-items:stretch;flex-direction:column}
   .online-toolbar{
     flex-direction:column;
   }

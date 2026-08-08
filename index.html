@@ -333,8 +333,18 @@
           </div>
           <div class="actions">
             <button class="btn primary" id="btnCargarDatosDiarios" type="button">Cargar datos diarios</button>
+            <label class="btn secondary file-button" for="inputImportarVelasCsv">Importar datos CSV</label>
+            <input id="inputImportarVelasCsv" class="visually-hidden" type="file" accept=".csv,text/csv">
+            <button class="btn danger" id="btnBorrarVelas" type="button">Borrar datos</button>
             <button class="btn secondary" id="btnVelasVistaRegistros" type="button">Vista registros</button>
             <button class="btn secondary" id="btnVelasVistaGrafico" type="button">Gráfico de velas</button>
+          </div>
+          <div class="velas-importacion">
+            <div>
+              <label for="velasValorImportar">Valor al que pertenece el CSV</label>
+              <select id="velasValorImportar"><option value="">Selecciona un valor</option></select>
+            </div>
+            <p class="hint">Formato admitido: Date, Open, High, Low, Close y Volume. Las fechas se interpretan como mes/día/año.</p>
           </div>
           <p id="velasStatus" class="online-status muted"></p>
           <div class="velas-toolbar">
@@ -342,6 +352,7 @@
             <div><label for="velasFechaHasta">Hasta</label><input id="velasFechaHasta" type="date"></div>
             <div><label for="velasValor">Valor</label><select id="velasValor"><option value="">Todos</option></select></div>
           </div>
+          <p class="hint">Borrar datos usa el rango de fechas y el valor seleccionados arriba. Deja “Todos” para borrar todos los valores del rango.</p>
           <div id="velasVistaRegistros">
             <div class="velas-navegacion">
               <button class="btn secondary" id="btnVelaAnterior" type="button">← Anterior</button>
