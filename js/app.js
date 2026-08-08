@@ -165,6 +165,8 @@ function init(){
   bind("buscarCotizacionOnline", "input", renderCotizacionOnline);
   bind("filtroCotizacionOnline", "change", renderCotizacionOnline);
   bind("btnCargarDatosDiarios", "click", cargarDatosDiarios);
+  bind("inputImportarVelasCsv", "change", importarVelasCsv);
+  bind("btnBorrarVelas", "click", borrarVelasFiltradas);
   bind("btnVelasVistaRegistros", "click", ()=>setVelasViewMode("registros"));
   bind("btnVelasVistaGrafico", "click", ()=>setVelasViewMode("grafico"));
   bind("velasFechaDesde", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
@@ -1374,6 +1376,25 @@ function getCampoNumericoVela(row, patrones){
   return normalizarNumeroDesdeExcel(buscarValorPorColumnas(row, patrones));
 }
 
+function normalizarFechaSesion(value){
+  if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if(typeof value === "number" && Number.isFinite(value)){
+    const fechaExcel = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+    return Number.isNaN(fechaExcel.getTime()) ? "" : fechaExcel.toISOString().slice(0, 10);
+  }
+  const texto = String(value || "").trim();
+  if(!texto) return "";
+  const iso = texto.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if(iso) return `${iso[1]}-${iso[2].padStart(2,"0")}-${iso[3].padStart(2,"0")}`;
+  const local = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if(!local) return "";
+  return `${local[3]}-${local[2].padStart(2,"0")}-${local[1].padStart(2,"0")}`;
+}
+
+function getFechaSesionExcel(row){
+  return normalizarFechaSesion(buscarValorPorColumnas(row, ["fecha sesion", "fecha", "session date", "session", "date"]));
+}
+
 function crearVelaDiaria(row, fecha, capturadaEn){
   const cierre = getPrecioCotizacionOnline(row);
   const aperturaLeida = getCampoNumericoVela(row, ["apertura", "open"]);
@@ -1407,10 +1428,15 @@ async function cargarDatosDiarios(){
     setStatus("Descargando los datos del cierre diario...");
     const datos = await descargarCotizacionOnlineGoogle();
     const capturadaEn = new Date().toISOString();
-    const fecha = today();
-    const nuevas = datos.map(row=>crearVelaDiaria(row, fecha, capturadaEn));
-    const ids = new Set(nuevas.map(item=>item.id));
-    db.velas = [...(db.velas || []).filter(item=>!ids.has(item.id)), ...nuevas];
+    const filasConFecha = datos.map(row=>({ row, fecha: getFechaSesionExcel(row) }));
+    const sinFecha = filasConFecha.filter(item=>!item.fecha).length;
+    if(sinFecha) throw new Error(`El Excel no indica una fecha de sesión válida en ${sinFecha} fila${sinFecha === 1 ? "" : "s"}. No se ha guardado ningún dato.`);
+    const sesiones = [...new Set(filasConFecha.map(item=>item.fecha))];
+    if(sesiones.length !== 1) throw new Error(`El Excel contiene más de una fecha de sesión (${sesiones.join(", ")}). No se ha guardado ningún dato.`);
+    const fecha = sesiones[0];
+    if((db.velas || []).some(item=>item.fecha === fecha)) throw new Error(`La sesión ${fecha} ya está guardada. No se permiten sesiones repetidas.`);
+    const nuevas = filasConFecha.map(({row, fecha: fechaFila})=>crearVelaDiaria(row, fechaFila, capturadaEn));
+    db.velas = [...(db.velas || []), ...nuevas];
     db.cotizacionOnline = { datos, updatedAt: capturadaEn, error: null };
     saveDB(db);
     velaRegistroActual = 0;
@@ -1423,6 +1449,83 @@ async function cargarDatosDiarios(){
   }finally{
     if(boton) boton.disabled = false;
   }
+}
+
+function parsearLineaCsv(linea){
+  const campos = [];
+  let campo = "", entreComillas = false;
+  for(let i = 0; i < linea.length; i++){
+    const caracter = linea[i];
+    if(caracter === '"' && entreComillas && linea[i + 1] === '"'){ campo += '"'; i++; }
+    else if(caracter === '"') entreComillas = !entreComillas;
+    else if(caracter === "," && !entreComillas){ campos.push(campo.trim()); campo = ""; }
+    else campo += caracter;
+  }
+  campos.push(campo.trim());
+  return campos;
+}
+
+function normalizarNumeroCsv(value){
+  const numero = Number(String(value || "").replace(/,/g, "").trim());
+  return Number.isFinite(numero) ? numero : NaN;
+}
+
+async function importarVelasCsv(event){
+  const input = event.currentTarget;
+  const seleccion = el("velasValorImportar")?.value || "";
+  const archivo = input.files?.[0];
+  try{
+    if(!archivo) return;
+    if(!seleccion) throw new Error("Selecciona primero el valor al que pertenece el CSV.");
+    const [ticker, nombre] = seleccion.split("|");
+    const lineas = (await archivo.text()).replace(/^\uFEFF/, "").split(/\r?\n/).filter(linea=>linea.trim());
+    if(lineas.length < 2) throw new Error("El CSV no contiene registros.");
+    const cabeceras = parsearLineaCsv(lineas[0]).map(c=>c.toLowerCase());
+    const requeridas = ["date", "open", "high", "low", "close", "volume"];
+    if(!requeridas.every(c=>cabeceras.includes(c))) throw new Error("El CSV debe incluir Date, Open, High, Low, Close y Volume.");
+    const capturadaEn = new Date().toISOString();
+    const existentes = new Set((db.velas || []).filter(v=>`${v.ticker}|${v.nombre}` === seleccion).map(v=>v.fecha));
+    let omitidas = 0;
+    const nuevas = [];
+    lineas.slice(1).forEach((linea, indice)=>{
+      const valores = parsearLineaCsv(linea);
+      const row = Object.fromEntries(cabeceras.map((cabecera, i)=>[cabecera, valores[i] ?? ""]));
+      // El formato solicitado es estadounidense: MM/DD/YYYY.
+      const partes = row.date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      const fecha = partes ? `${partes[3]}-${partes[1].padStart(2,"0")}-${partes[2].padStart(2,"0")}` : normalizarFechaSesion(row.date);
+      const apertura = normalizarNumeroCsv(row.open), maximo = normalizarNumeroCsv(row.high);
+      const minimo = normalizarNumeroCsv(row.low), cierre = normalizarNumeroCsv(row.close), volumen = normalizarNumeroCsv(row.volume);
+      if(!fecha || ![apertura,maximo,minimo,cierre,volumen].every(Number.isFinite)) throw new Error(`Fila ${indice + 2} del CSV no válida.`);
+      if(existentes.has(fecha) || nuevas.some(v=>v.fecha === fecha)){ omitidas++; return; }
+      nuevas.push({ id:`${fecha}_${ticker || nombre}`, fecha, capturadaEn, ticker, nombre, apertura, maximo, minimo, cierre, datos:{ Date:row.date, Open:row.open, High:row.high, Low:row.low, Close:row.close, Volume:row.volume, volumen } });
+    });
+    if(!nuevas.length) throw new Error("No hay sesiones nuevas que importar; todas estaban guardadas.");
+    db.velas = [...(db.velas || []), ...nuevas];
+    saveDB(db);
+    velaRegistroActual = 0;
+    renderVelas();
+    setStatus(`CSV importado: ${nuevas.length} sesiones de ${nombre}${omitidas ? `; ${omitidas} repetidas omitidas` : ""}.`);
+  }catch(e){
+    alert(e.message);
+    setStatus("No se pudo importar el CSV.");
+  }finally{
+    input.value = "";
+  }
+}
+
+function borrarVelasFiltradas(){
+  const seleccionadas = getVelasFiltradas();
+  if(!seleccionadas.length){ alert("No hay datos que coincidan con el rango y el valor seleccionados."); return; }
+  const desde = el("velasFechaDesde")?.value || "el inicio";
+  const hasta = el("velasFechaHasta")?.value || "el final";
+  const valor = el("velasValor")?.selectedOptions?.[0]?.textContent || "Todos";
+  if(!confirm(`Vas a borrar ${seleccionadas.length} registro(s) de ${valor}, desde ${desde} hasta ${hasta}. Esta acción no se puede deshacer. ¿Confirmas el borrado?`)) return;
+  const ids = new Set(seleccionadas.map(v=>v.id));
+  db.velas = (db.velas || []).filter(v=>!ids.has(v.id));
+  saveDB(db);
+  velaRegistroActual = 0;
+  renderVelas();
+  setStatus(`Se han borrado ${seleccionadas.length} registros de velas.`);
 }
 
 function getVelasFiltradas(){
@@ -1454,6 +1557,14 @@ function renderVelas(){
   const valores = [...new Map(todas.map(item=>[`${item.ticker}|${item.nombre}`, item])).entries()].sort((a,b)=>a[1].nombre.localeCompare(b[1].nombre));
   selector.innerHTML = `<option value="">Todos</option>${valores.map(([key,item])=>`<option value="${escaparHtml(key)}">${escaparHtml(item.nombre)}${item.ticker ? ` (${escaparHtml(item.ticker)})` : ""}</option>`).join("")}`;
   if(valores.some(([key])=>key === seleccion)) selector.value = seleccion;
+  const selectorImportar = el("velasValorImportar");
+  const seleccionImportar = selectorImportar.value;
+  const candidatosImportar = [...new Map([
+    ...valores,
+    ...getCotizacionOnlineDatos().map(item=>[`${getTickerCotizacionOnline(item)}|${getNombreCotizacionOnline(item)}`, item])
+  ].filter(([key])=>key !== "|"))].sort((a,b)=>getNombreCotizacionOnline(a[1]).localeCompare(getNombreCotizacionOnline(b[1])));
+  selectorImportar.innerHTML = `<option value="">Selecciona un valor</option>${candidatosImportar.map(([key,item])=>{ const ticker = getTickerCotizacionOnline(item) || item.ticker; const nombre = getNombreCotizacionOnline(item) || item.nombre; return `<option value="${escaparHtml(key)}">${escaparHtml(nombre)}${ticker ? ` (${escaparHtml(ticker)})` : ""}</option>`; }).join("")}`;
+  if(candidatosImportar.some(([key])=>key === seleccionImportar)) selectorImportar.value = seleccionImportar;
 
   const filtradas = getVelasFiltradas();
   velaRegistroActual = Math.max(0, Math.min(filtradas.length - 1, velaRegistroActual));
