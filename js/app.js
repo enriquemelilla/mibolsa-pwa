@@ -169,8 +169,9 @@ function init(){
   bind("btnBorrarVelas", "click", borrarVelasFiltradas);
   bind("btnVelasVistaRegistros", "click", ()=>setVelasViewMode("registros"));
   bind("btnVelasVistaGrafico", "click", ()=>setVelasViewMode("grafico"));
-  bind("velasFechaDesde", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
-  bind("velasFechaHasta", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
+  bind("velasUltimas52", "click", aplicarUltimas52Sesiones);
+  bind("velasFechaDesde", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; renderVelas(); });
+  bind("velasFechaHasta", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; renderVelas(); });
   bind("velasValor", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
   bind("btnVelaAnterior", "click", ()=>moverRegistroVela(-1));
   bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
@@ -1392,7 +1393,7 @@ function normalizarFechaSesion(value){
 }
 
 function getFechaSesionExcel(row){
-  return normalizarFechaSesion(buscarValorPorColumnas(row, ["fecha sesion", "fecha", "session date", "session", "date"]));
+  return normalizarFechaSesion(buscarValorPorColumnas(row, ["fecha sesion", "fecha", "session date", "tradetime", "trade time", "session", "date"]));
 }
 
 function crearVelaDiaria(row, fecha, capturadaEn){
@@ -1526,6 +1527,20 @@ function borrarVelasFiltradas(){
   velaRegistroActual = 0;
   renderVelas();
   setStatus(`Se han borrado ${seleccionadas.length} registros de velas.`);
+}
+
+function aplicarUltimas52Sesiones(){
+  const fechas = [...new Set((db.velas || []).map(item=>item.fecha).filter(Boolean))].sort();
+  if(!fechas.length){
+    el("velasUltimas52").checked = false;
+    setStatus("No hay sesiones cargadas para aplicar el rango de las últimas 52.");
+    return;
+  }
+  const ultimas52 = fechas.slice(-52);
+  el("velasFechaDesde").value = ultimas52[0];
+  el("velasFechaHasta").value = ultimas52[ultimas52.length - 1];
+  velaRegistroActual = 0;
+  renderVelas();
 }
 
 function getVelasFiltradas(){
