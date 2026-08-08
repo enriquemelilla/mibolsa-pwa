@@ -344,10 +344,14 @@
               <label for="velasValorImportar">Valor al que pertenece el CSV</label>
               <select id="velasValorImportar"><option value="">Selecciona un valor</option></select>
             </div>
-            <p class="hint">Formato admitido: Date, Open, High, Low, Close y Volume. Las fechas se interpretan como mes/día/año.</p>
+            <p class="hint">Formato admitido: Date, Open, High, Low, Close y Volume. Las fechas se interpretan como mes/día/año. Datos obtenidos de <a href="https://www.marketwatch.com/" target="_blank" rel="noopener noreferrer">MarketWatch</a>.</p>
           </div>
           <p id="velasStatus" class="online-status muted"></p>
           <div class="velas-toolbar">
+            <label class="velas-rango-rapido" for="velasUltimas52">
+              <input id="velasUltimas52" name="rangoVelas" type="radio">
+              <span>Últimas 52 sesiones</span>
+            </label>
             <div><label for="velasFechaDesde">Desde</label><input id="velasFechaDesde" type="date"></div>
             <div><label for="velasFechaHasta">Hasta</label><input id="velasFechaHasta" type="date"></div>
             <div><label for="velasValor">Valor</label><select id="velasValor"><option value="">Todos</option></select></div>
