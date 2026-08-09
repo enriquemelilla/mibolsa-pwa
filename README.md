@@ -55,6 +55,14 @@ http://localhost:8080
 La aplicación guarda los datos en localStorage del navegador.
 Usa Exportar JSON para hacer copias de seguridad.
 
+## Herramientas de dibujo en velas
+
+La vista gráfica de Velas permite crear líneas horizontales, verticales y de tendencia,
+zonas y etiquetas. En la fase 2 cada dibujo también se puede personalizar por color y
+grosor, duplicar, bloquear para evitar movimientos accidentales y eliminar de forma
+individual o por gráfico. Los cambios admiten deshacer y rehacer y se guardan en la
+copia de seguridad de la aplicación.
+
 
 ## Adaptación móvil / PC añadida
 

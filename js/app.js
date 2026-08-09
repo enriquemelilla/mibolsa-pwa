@@ -185,6 +185,11 @@ function init(){
   bind("velasZoom", "input", ()=>{ el("velasZoomValor").textContent = el("velasZoom").value; renderVelas(); });
   document.querySelectorAll("[data-dibujo-tool]").forEach(button=>button.addEventListener("click", ()=>seleccionarHerramientaDibujo(button.dataset.dibujoTool)));
   bind("btnEliminarDibujo", "click", eliminarDibujoSeleccionado);
+  bind("btnDuplicarDibujo", "click", duplicarDibujoSeleccionado);
+  bind("btnBloquearDibujo", "click", alternarBloqueoDibujo);
+  bind("btnLimpiarDibujos", "click", limpiarDibujosContexto);
+  bind("dibujoColor", "input", actualizarEstiloDibujo);
+  bind("dibujoGrosor", "change", actualizarEstiloDibujo);
   bind("btnDeshacerDibujo", "click", deshacerDibujo);
   bind("btnRehacerDibujo", "click", rehacerDibujo);
 
@@ -1656,9 +1661,55 @@ function guardarEstadoDibujos(){
 function persistirDibujos(mensaje){ saveDB(db); actualizarBotonesDibujo(); setStatus(mensaje); }
 
 function actualizarBotonesDibujo(){
-  if(el("btnEliminarDibujo")) el("btnEliminarDibujo").disabled = !dibujoSeleccionado;
+  const seleccionado = (db.dibujosVelas || []).find(d=>d.id === dibujoSeleccionado);
+  ["btnEliminarDibujo","btnDuplicarDibujo","btnBloquearDibujo"].forEach(id=>{ if(el(id)) el(id).disabled = !seleccionado; });
+  if(el("btnLimpiarDibujos")) el("btnLimpiarDibujos").disabled = !dibujosContexto(el("velasAgrupacion")?.value || "dia").length;
+  if(el("btnBloquearDibujo")){
+    el("btnBloquearDibujo").classList.toggle("is-locked", Boolean(seleccionado?.bloqueado));
+    el("btnBloquearDibujo").setAttribute("aria-pressed", String(Boolean(seleccionado?.bloqueado)));
+    el("btnBloquearDibujo").querySelector("span").textContent = seleccionado?.bloqueado ? "Desbloquear" : "Bloquear";
+  }
+  if(seleccionado){
+    if(el("dibujoColor")) el("dibujoColor").value = seleccionado.color || "#fbbf24";
+    if(el("dibujoGrosor")) el("dibujoGrosor").value = String(seleccionado.grosor || 2.5);
+  }
   if(el("btnDeshacerDibujo")) el("btnDeshacerDibujo").disabled = !historialDibujos.length;
   if(el("btnRehacerDibujo")) el("btnRehacerDibujo").disabled = !rehacerDibujos.length;
+}
+
+function actualizarEstiloDibujo(){
+  const dibujo = (db.dibujosVelas || []).find(d=>d.id === dibujoSeleccionado);
+  if(!dibujo) return;
+  guardarEstadoDibujos();
+  dibujo.color = el("dibujoColor").value;
+  dibujo.grosor = Number(el("dibujoGrosor").value);
+  persistirDibujos("Estilo del dibujo actualizado."); renderVelas();
+}
+
+function alternarBloqueoDibujo(){
+  const dibujo = (db.dibujosVelas || []).find(d=>d.id === dibujoSeleccionado);
+  if(!dibujo) return;
+  guardarEstadoDibujos(); dibujo.bloqueado = !dibujo.bloqueado;
+  persistirDibujos(dibujo.bloqueado ? "Dibujo bloqueado." : "Dibujo desbloqueado."); renderVelas();
+}
+
+function duplicarDibujoSeleccionado(){
+  const dibujo = (db.dibujosVelas || []).find(d=>d.id === dibujoSeleccionado);
+  if(!dibujo) return;
+  guardarEstadoDibujos();
+  const copia = structuredClone(dibujo); copia.id = uid(); copia.bloqueado = false;
+  ["p1","p2"].forEach(k=>{ if(copia[k]) copia[k].precio += Math.max(Math.abs(copia[k].precio) * .01, .01); });
+  if(Number.isFinite(copia.precio)) copia.precio += Math.max(Math.abs(copia.precio) * .01, .01);
+  db.dibujosVelas.push(copia); dibujoSeleccionado = copia.id;
+  persistirDibujos("Dibujo duplicado."); renderVelas();
+}
+
+function limpiarDibujosContexto(){
+  const periodo = el("velasAgrupacion")?.value || "dia", actuales = dibujosContexto(periodo);
+  if(!actuales.length || !confirm(`¿Eliminar los ${actuales.length} dibujos de este valor y agrupación?`)) return;
+  guardarEstadoDibujos(); const ids = new Set(actuales.map(d=>d.id));
+  db.dibujosVelas = (db.dibujosVelas || []).filter(d=>!ids.has(d.id)); dibujoSeleccionado = null;
+  persistirDibujos("Dibujos del gráfico eliminados."); renderVelas();
 }
 
 function eliminarDibujoSeleccionado(){
@@ -1706,6 +1757,7 @@ function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibl
     const origen = inicio;
     inicio = null;
     if(origen.drawingId && herramientaDibujo === "cursor"){
+      if(origen.original?.bloqueado){ setStatus("El dibujo está bloqueado. Desbloquéalo para moverlo."); renderVelas(); return; }
       if(Math.abs(dx)>3 || Math.abs(dy)>3){
         guardarEstadoDibujos();
         const fin=puntoGrafico(svg,event,datos), d=(db.dibujosVelas||[]).find(item=>item.id===origen.drawingId);
@@ -1735,7 +1787,7 @@ function gestionarPuntoDibujo(punto, periodo){
   if(necesitaDos && !dibujoPendiente){ dibujoPendiente=punto; setStatus("Marca el segundo punto del dibujo."); return; }
   let texto=""; if(tipo==="texto"){ texto=prompt("Texto de la etiqueta:", "Nota")?.trim(); if(!texto) return; }
   guardarEstadoDibujos();
-  const dibujo={id:uid(),tipo,valor:claveValorVelas(),periodo,color:"#fbbf24"};
+  const dibujo={id:uid(),tipo,valor:claveValorVelas(),periodo,color:el("dibujoColor")?.value||"#fbbf24",grosor:Number(el("dibujoGrosor")?.value||2.5),bloqueado:false};
   if(tipo==="horizontal") dibujo.precio=punto.precio;
   else if(tipo==="vertical") dibujo.p1=punto;
   else if(tipo==="texto") Object.assign(dibujo,{p1:punto,texto});
@@ -1832,8 +1884,9 @@ function crearDibujosSvg(datos, periodo, escala){
   const fechas=datos.map(v=>v.fecha), xFecha=fecha=>{ const i=fechas.indexOf(fecha); return i<0 ? null : escala.left+escala.paso*(i+.5); };
   const y=precio=>escala.yPrecio(Number(precio));
   return dibujosContexto(periodo).map(d=>{
-    const clase=d.id===dibujoSeleccionado ? "drawing selected" : "drawing";
-    const attr=`class="${clase}" data-drawing-id="${escaparHtml(d.id)}" style="--drawing-color:${escaparHtml(d.color||"#fbbf24")}"`;
+    const clase=`drawing${d.id===dibujoSeleccionado ? " selected" : ""}${d.bloqueado ? " locked" : ""}`;
+    const grosor=[1.5,2.5,4].includes(Number(d.grosor)) ? Number(d.grosor) : 2.5;
+    const attr=`class="${clase}" data-drawing-id="${escaparHtml(d.id)}" style="--drawing-color:${escaparHtml(d.color||"#fbbf24")};--drawing-width:${grosor}"`;
     if(d.tipo==="horizontal"){
       if(d.precio<escala.minimo||d.precio>escala.maximo) return "";
       return `<g ${attr}><line x1="${escala.left}" y1="${y(d.precio)}" x2="${escala.right}" y2="${y(d.precio)}"/><text x="${escala.right-6}" y="${y(d.precio)-7}" text-anchor="end">${num(d.precio,escala.decimales)}</text></g>`;
