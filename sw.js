@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v23-dibujos-fase-3";
+const CACHE_NAME = "mibolsa-v24-navegacion-velas";
 const ASSETS = [
   "./",
   "./index.html",

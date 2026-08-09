@@ -358,10 +358,19 @@
           </div>
           <p class="hint">Borrar datos usa el rango de fechas y el valor seleccionados arriba. Deja “Todos” para borrar todos los valores del rango.</p>
           <div id="velasVistaRegistros">
-            <div class="velas-navegacion">
-              <button class="btn secondary" id="btnVelaAnterior" type="button">← Anterior</button>
-              <strong id="velaPosicion">0 / 0</strong>
-              <button class="btn secondary" id="btnVelaSiguiente" type="button">Siguiente →</button>
+            <div class="velas-navegacion" aria-label="Navegación por registros">
+              <div class="velas-navegacion-extremo">
+                <button class="btn secondary" id="btnVelaInicio" type="button">⇤ Inicio</button>
+                <button class="btn secondary" id="btnVelaAnterior" type="button">← Anterior</button>
+              </div>
+              <label class="velas-navegacion-barra" for="velaDesplazamiento">
+                <strong id="velaPosicion">0 / 0</strong>
+                <input id="velaDesplazamiento" type="range" min="0" max="0" value="0" aria-label="Seleccionar registro">
+              </label>
+              <div class="velas-navegacion-extremo">
+                <button class="btn secondary" id="btnVelaSiguiente" type="button">Siguiente →</button>
+                <button class="btn secondary" id="btnVelaFinal" type="button">Final ⇥</button>
+              </div>
             </div>
             <article id="velaRegistro" class="vela-registro placeholder">No hay datos diarios.</article>
           </div>
@@ -397,6 +406,20 @@
             </div>
             <p class="hint grafico-ayuda">Medición, Fibonacci y Flecha usan dos puntos; Canal y posiciones larga/corta usan tres (entrada, objetivo y stop). Selecciona un dibujo para asociarle una alerta. Las compras y ventas guardadas aparecen automáticamente en el gráfico.</p>
             <div id="graficoVelas" class="grafico-velas" role="img" aria-label="Gráfico bursátil de velas y volumen"></div>
+            <div class="velas-navegacion velas-navegacion-grafico" aria-label="Navegación por el gráfico de velas">
+              <div class="velas-navegacion-extremo">
+                <button class="btn secondary" id="btnGraficoVelasInicio" type="button">⇤ Inicio</button>
+                <button class="btn secondary" id="btnGraficoVelasAnterior" type="button">← Anterior</button>
+              </div>
+              <label class="velas-navegacion-barra" for="graficoVelasDesplazamiento">
+                <strong id="graficoVelasPosicion">0 / 0</strong>
+                <input id="graficoVelasDesplazamiento" type="range" min="0" max="0" value="0" aria-label="Desplazar gráfico de velas">
+              </label>
+              <div class="velas-navegacion-extremo">
+                <button class="btn secondary" id="btnGraficoVelasSiguiente" type="button">Siguiente →</button>
+                <button class="btn secondary" id="btnGraficoVelasFinal" type="button">Final ⇥</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
