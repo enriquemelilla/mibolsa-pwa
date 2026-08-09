@@ -1230,6 +1230,7 @@ button,
 
 .dibujo-tool.has-alert{border-color:#fbbf24;color:#fbbf24;background:#422006}
 .velas-svg .drawing .position-profit{fill:#22c55e;stroke:#22c55e;fill-opacity:.2}.velas-svg .drawing .position-risk{fill:#ef4444;stroke:#ef4444;fill-opacity:.2}.velas-svg .trade-marker{pointer-events:none}.velas-svg .trade-marker.buy{color:#22c55e}.velas-svg .trade-marker.sell{color:#ef4444}.velas-svg .trade-marker path{fill:currentColor;stroke:#0f172a;stroke-width:2}.velas-svg .trade-marker text{fill:currentColor;font-size:11px;font-weight:800;paint-order:stroke;stroke:#0f172a;stroke-width:3px}.velas-svg .trade-marker .marker-label-guide{stroke:currentColor;stroke-width:1;stroke-dasharray:3 2;opacity:.65}
+.velas-svg .trade-marker.out-of-range{color:#f59e0b}
 
 /* Escritorio: una interfaz más compacta aprovecha mejor las pantallas grandes
    sin modificar los tamaños táctiles ni la composición de móvil. */
