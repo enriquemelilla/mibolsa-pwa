@@ -1588,9 +1588,28 @@ function getVelasFiltradas(){
 }
 
 function setVelasViewMode(mode){
+  if(velasViewMode === "registros" && mode === "grafico") sincronizarGraficoConRegistroActual();
   velasViewMode = mode;
   localStorage.setItem("velasViewMode", mode);
   renderVelas();
+}
+
+function sincronizarGraficoConRegistroActual(){
+  const filtradas = getVelasFiltradas();
+  const registroActual = filtradas[velaRegistroActual];
+  if(!registroActual) return;
+
+  const periodo = el("velasAgrupacion")?.value || "dia";
+  const validas = filtradas.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse();
+  const agrupadas = agruparVelas(validas, periodo);
+  const fechaRegistro = new Date(`${registroActual.fecha}T00:00:00Z`);
+  if(periodo === "semana") fechaRegistro.setUTCDate(fechaRegistro.getUTCDate() - ((fechaRegistro.getUTCDay() + 6) % 7));
+  const claveRegistro = periodo === "mes" ? registroActual.fecha.slice(0, 7) : fechaRegistro.toISOString().slice(0, 10);
+  const indice = agrupadas.findIndex(vela=>vela.fecha === claveRegistro);
+  if(indice < 0) return;
+
+  const visibles = Math.max(1, Math.min(Number(el("velasZoom")?.value || 40), agrupadas.length));
+  velasDesplazamientoActual = Math.min(indice, Math.max(0, agrupadas.length - visibles));
 }
 
 function moverRegistroVela(delta){
