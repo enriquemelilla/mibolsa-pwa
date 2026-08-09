@@ -366,11 +366,23 @@
             <article id="velaRegistro" class="vela-registro placeholder">No hay datos diarios.</article>
           </div>
           <div id="velasVistaGrafico" class="hidden">
+            <div class="dibujo-toolbar" role="toolbar" aria-label="Herramientas de dibujo">
+              <button class="dibujo-tool active" data-dibujo-tool="cursor" type="button" title="Seleccionar y mover">↖ <span>Cursor</span></button>
+              <button class="dibujo-tool" data-dibujo-tool="horizontal" type="button" title="Línea horizontal">━ <span>Horizontal</span></button>
+              <button class="dibujo-tool" data-dibujo-tool="tendencia" type="button" title="Línea de tendencia">╱ <span>Tendencia</span></button>
+              <button class="dibujo-tool" data-dibujo-tool="vertical" type="button" title="Línea vertical">┃ <span>Vertical</span></button>
+              <button class="dibujo-tool" data-dibujo-tool="zona" type="button" title="Rectángulo o zona">▭ <span>Zona</span></button>
+              <button class="dibujo-tool" data-dibujo-tool="texto" type="button" title="Texto o etiqueta">T <span>Texto</span></button>
+              <span class="dibujo-separador" aria-hidden="true"></span>
+              <button class="dibujo-tool" id="btnDeshacerDibujo" type="button" title="Deshacer" disabled>↶ <span>Deshacer</span></button>
+              <button class="dibujo-tool" id="btnRehacerDibujo" type="button" title="Rehacer" disabled>↷ <span>Rehacer</span></button>
+              <button class="dibujo-tool danger" id="btnEliminarDibujo" type="button" title="Eliminar dibujo seleccionado" disabled>🗑 <span>Eliminar</span></button>
+            </div>
             <div class="grafico-controles" aria-label="Controles del gráfico">
               <div><label for="velasAgrupacion">Agrupar por</label><select id="velasAgrupacion"><option value="dia">Días</option><option value="semana">Semanas</option><option value="mes">Meses</option></select></div>
               <div class="grafico-deslizador"><label for="velasZoom">Velas visibles: <strong id="velasZoomValor">40</strong></label><input id="velasZoom" type="range" min="5" max="100" value="40"></div>
             </div>
-            <p class="hint grafico-ayuda">Reduce las velas visibles para ampliar el detalle. Desliza el gráfico a derecha o izquierda para recorrer el histórico. Toca la zona de precio o volumen para marcar una línea horizontal y consultar su valor.</p>
+            <p class="hint grafico-ayuda">Los dibujos se guardan automáticamente por valor y agrupación. Usa Cursor para seleccionar y arrastrar un dibujo; pulsa Supr para borrarlo. En Tendencia y Zona, marca dos puntos.</p>
             <div id="graficoVelas" class="grafico-velas" role="img" aria-label="Gráfico bursátil de velas y volumen"></div>
           </div>
         </div>
