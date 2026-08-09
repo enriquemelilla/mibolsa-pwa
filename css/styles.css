@@ -1184,10 +1184,10 @@ button,
 .vela-registro{max-width:760px;margin:auto}
 .vela-registro h3{margin-top:0}.vela-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 .vela-dato{padding:10px;background:#111827;border-radius:10px}.vela-dato span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
-.grafico-controles{display:grid;grid-template-columns:minmax(140px,200px) repeat(2,minmax(220px,1fr));gap:16px;align-items:end;margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#111827}
+.grafico-controles{display:grid;grid-template-columns:minmax(140px,200px) minmax(220px,1fr);gap:16px;align-items:end;margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#111827}
 .grafico-deslizador input{padding:0;accent-color:var(--primary);cursor:ew-resize}.grafico-ayuda{margin:8px 2px}
 .grafico-velas{min-height:430px;overflow:hidden;padding:8px;border:1px solid var(--line);border-radius:14px;background:#0f172a}
-.velas-svg{display:block;width:100%;min-width:650px;height:550px}.velas-svg .grid line{stroke:#334155;stroke-width:1}.velas-svg .grid text,.velas-svg .date{fill:#94a3b8;font-size:11px}.velas-svg .axis-title{fill:#cbd5e1;font-size:12px;font-weight:700}.velas-svg .wick{stroke:currentColor;stroke-width:2}.velas-svg .candle{fill:currentColor;stroke:currentColor}.velas-svg .volume{fill:currentColor;opacity:.5}.velas-svg .up{color:var(--good)}.velas-svg .down{color:var(--bad)}
+.velas-svg{display:block;width:100%;min-width:0;height:550px;touch-action:pan-y;cursor:crosshair;user-select:none}.velas-svg .grid line{stroke:#334155;stroke-width:1}.velas-svg .grid .grid-minor{stroke:#253247;stroke-width:.55}.velas-svg .grid text,.velas-svg .date{fill:#94a3b8;font-size:11px}.velas-svg .axis-title{fill:#cbd5e1;font-size:12px;font-weight:700}.velas-svg .wick{stroke:currentColor;stroke-width:2}.velas-svg .candle{fill:currentColor;stroke:currentColor}.velas-svg .volume{fill:currentColor;opacity:.5}.velas-svg .up{color:var(--good)}.velas-svg .down{color:var(--bad)}.velas-svg .valor-seleccionado line{stroke:#f8fafc;stroke-width:1.5;stroke-dasharray:7 4;pointer-events:none}.velas-svg .valor-seleccionado text{fill:#f8fafc;font-size:13px;font-weight:700;paint-order:stroke;stroke:#0f172a;stroke-width:4px;pointer-events:none}
 .vela-columna{position:relative;flex:1 0 36px;min-width:36px;height:300px;border-bottom:1px solid var(--line)}
 .vela-mecha{position:absolute;width:2px;left:50%;transform:translateX(-50%);background:currentColor}
 .vela-cuerpo{position:absolute;width:16px;min-height:3px;left:50%;transform:translateX(-50%);background:currentColor;border:1px solid currentColor}
@@ -1196,7 +1196,7 @@ button,
 .grafico-vacio{margin:auto;color:var(--muted);text-align:center}
 
 @media(max-width:520px){
-  .grafico-controles{grid-template-columns:1fr}.grafico-velas{overflow-x:auto}
+  .grafico-controles{grid-template-columns:1fr}
   .velas-toolbar{grid-template-columns:1fr}
   .velas-importacion{align-items:stretch;flex-direction:column}
   .online-toolbar{

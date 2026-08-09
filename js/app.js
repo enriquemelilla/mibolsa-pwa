@@ -5,6 +5,7 @@ let recomendacionesIAViewMode = localStorage.getItem("recomendacionesIAViewMode"
 let estadoActualizacionCotizaciones = { estado: "success", errores: [] };
 let velasViewMode = localStorage.getItem("velasViewMode") || "registros";
 let velaRegistroActual = 0;
+let velasDesplazamientoActual = 0;
 
 const el = (id) => document.getElementById(id);
 
@@ -170,14 +171,13 @@ function init(){
   bind("btnVelasVistaRegistros", "click", ()=>setVelasViewMode("registros"));
   bind("btnVelasVistaGrafico", "click", ()=>setVelasViewMode("grafico"));
   bind("velasUltimas52", "click", aplicarUltimas52Sesiones);
-  bind("velasFechaDesde", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; renderVelas(); });
-  bind("velasFechaHasta", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; renderVelas(); });
-  bind("velasValor", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
+  bind("velasFechaDesde", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
+  bind("velasFechaHasta", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
+  bind("velasValor", "change", ()=>{ velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
   bind("btnVelaAnterior", "click", ()=>moverRegistroVela(-1));
   bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
-  bind("velasAgrupacion", "change", renderVelas);
+  bind("velasAgrupacion", "change", ()=>{ velasDesplazamientoActual = 0; renderVelas(); });
   bind("velasZoom", "input", ()=>{ el("velasZoomValor").textContent = el("velasZoom").value; renderVelas(); });
-  bind("velasDesplazamiento", "input", renderVelas);
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -1610,15 +1610,71 @@ function renderGraficoVelas(registros){
   const validos = agruparVelas(registros.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse(), periodo);
   if(!validos.length){ grafico.innerHTML = `<p class="grafico-vacio">No hay datos OHLC válidos para dibujar.</p>`; return; }
   if(!el("velasValor").value){ grafico.innerHTML = `<p class="grafico-vacio">Selecciona un valor para comparar sus velas por día.</p>`; return; }
-  const zoom = el("velasZoom"), desplazamiento = el("velasDesplazamiento");
+  const zoom = el("velasZoom");
   zoom.max = String(Math.max(5, validos.length));
   zoom.value = String(Math.min(Number(zoom.value), validos.length));
   const visibles = Math.max(1, Number(zoom.value));
   el("velasZoomValor").textContent = visibles;
-  desplazamiento.max = String(Math.max(0, validos.length - visibles));
-  desplazamiento.value = String(Math.min(Number(desplazamiento.value), Number(desplazamiento.max)));
-  const inicio = Number(desplazamiento.value), datos = validos.slice(inicio, inicio + visibles);
+  const maximoDesplazamiento = Math.max(0, validos.length - visibles);
+  velasDesplazamientoActual = Math.min(velasDesplazamientoActual, maximoDesplazamiento);
+  const inicio = velasDesplazamientoActual, datos = validos.slice(inicio, inicio + visibles);
   grafico.innerHTML = crearSvgVelas(datos, periodo);
+  configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles);
+}
+
+function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles){
+  const svg = grafico.querySelector("svg");
+  if(!svg) return;
+  let inicio = null;
+  svg.addEventListener("pointerdown", event=>{
+    inicio = { x:event.clientX, y:event.clientY, id:event.pointerId };
+    svg.setPointerCapture?.(event.pointerId);
+  });
+  svg.addEventListener("pointerup", event=>{
+    if(!inicio || inicio.id !== event.pointerId) return;
+    const dx = event.clientX - inicio.x, dy = event.clientY - inicio.y;
+    inicio = null;
+    if(Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy)){
+      const ancho = svg.getBoundingClientRect().width || 1;
+      const avance = Math.max(1, Math.round(-dx / ancho * visibles));
+      velasDesplazamientoActual = Math.max(0, Math.min(maximoDesplazamiento, velasDesplazamientoActual + avance));
+      renderVelas();
+      return;
+    }
+    if(Math.abs(dx) <= 12 && Math.abs(dy) <= 12) marcarValorGrafico(svg, event);
+  });
+  svg.addEventListener("pointercancel", ()=>{ inicio = null; });
+}
+
+function marcarValorGrafico(svg, event){
+  const punto = svg.createSVGPoint();
+  punto.x = event.clientX;
+  punto.y = event.clientY;
+  const local = punto.matrixTransform(svg.getScreenCTM().inverse());
+  const precioTop = Number(svg.dataset.priceTop), precioBottom = Number(svg.dataset.priceBottom);
+  const volumenTop = Number(svg.dataset.volumeTop), volumenBottom = Number(svg.dataset.volumeBottom);
+  let tipo, valor, decimales;
+  if(local.y >= precioTop && local.y <= precioBottom){
+    tipo = "precio";
+    const maximo = Number(svg.dataset.priceMax), minimo = Number(svg.dataset.priceMin);
+    valor = maximo - (local.y - precioTop) / (precioBottom - precioTop) * (maximo - minimo);
+    decimales = Number(svg.dataset.priceDecimals);
+  }else if(local.y >= volumenTop && local.y <= volumenBottom){
+    tipo = "volumen";
+    valor = (volumenBottom - local.y) / (volumenBottom - volumenTop) * Number(svg.dataset.volumeMax);
+    decimales = 0;
+  }else return;
+  svg.querySelector(".valor-seleccionado")?.remove();
+  const ns = "http://www.w3.org/2000/svg", grupo = document.createElementNS(ns, "g");
+  grupo.setAttribute("class", "valor-seleccionado");
+  const linea = document.createElementNS(ns, "line");
+  linea.setAttribute("x1", svg.dataset.plotLeft); linea.setAttribute("x2", svg.dataset.plotRight);
+  linea.setAttribute("y1", local.y); linea.setAttribute("y2", local.y);
+  const texto = document.createElementNS(ns, "text");
+  texto.setAttribute("x", Number(svg.dataset.plotRight) - 6); texto.setAttribute("y", local.y - 6);
+  texto.setAttribute("text-anchor", "end");
+  texto.textContent = `${tipo === "precio" ? "Precio" : "Volumen"}: ${num(valor, decimales)}`;
+  grupo.append(linea, texto); svg.append(grupo);
 }
 
 function volumenVela(vela){
@@ -1653,9 +1709,13 @@ function crearSvgVelas(datos, periodo){
   const yPrecio = value=>priceTop+(maximo-value)/rango*priceHeight;
   const decimales = rango < .1 ? 4 : rango < 10 ? 3 : 2;
   let rejilla = "";
+  for(let i=0;i<=32;i++){
+    const y=priceTop+priceHeight*i/32, valor=maximo-rango*i/32, principal=i%4===0;
+    rejilla += `<line class="${principal ? "grid-major" : "grid-minor"}" x1="${left}" y1="${y}" x2="${left+plotWidth}" y2="${y}"/>${principal ? `<text x="${left+plotWidth+8}" y="${y+4}">${num(valor,decimales)}</text>` : ""}`;
+  }
   for(let i=0;i<=8;i++){
-    const y=priceTop+priceHeight*i/8, valor=maximo-rango*i/8;
-    rejilla += `<line x1="${left}" y1="${y}" x2="${left+plotWidth}" y2="${y}"/><text x="${left+plotWidth+8}" y="${y+4}">${num(valor,decimales)}</text>`;
+    const y=volumeTop+volumeHeight*i/8, valor=maxVolumen*(1-i/8), principal=i%2===0;
+    rejilla += `<line class="${principal ? "grid-major" : "grid-minor"}" x1="${left}" y1="${y}" x2="${left+plotWidth}" y2="${y}"/>${principal ? `<text x="${left+plotWidth+8}" y="${y+4}">${num(valor,0)}</text>` : ""}`;
   }
   let elementos = "";
   datos.forEach((v,i)=>{
@@ -1666,7 +1726,7 @@ function crearSvgVelas(datos, periodo){
     const etiqueta=periodo === "mes" ? v.fecha : v.fecha.slice(5);
     elementos += `<g class="${clase}"><title>${escaparHtml(v.fecha)} · Apertura ${num(v.apertura,4)} · Máximo ${num(v.maximo,4)} · Mínimo ${num(v.minimo,4)} · Cierre ${num(v.cierre,4)} · Volumen ${num(v.volumen,0)}</title><line class="wick" x1="${x}" y1="${yPrecio(v.maximo)}" x2="${x}" y2="${yPrecio(v.minimo)}"/><rect class="candle" x="${x-ancho/2}" y="${cuerpoTop}" width="${ancho}" height="${Math.max(2,cuerpoBottom-cuerpoTop)}"/><rect class="volume" x="${x-ancho/2}" y="${volumeTop+volumeHeight-alturaVolumen}" width="${ancho}" height="${alturaVolumen}"/><text class="date" transform="translate(${x+3} ${labelsY}) rotate(-72)">${escaparHtml(etiqueta)}</text></g>`;
   });
-  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}<line x1="${left}" y1="${volumeTop+volumeHeight}" x2="${left+plotWidth}" y2="${volumeTop+volumeHeight}"/><text x="${left+plotWidth+8}" y="${volumeTop+5}">${num(maxVolumen,0)}</text><text x="${left+plotWidth+8}" y="${volumeTop+volumeHeight}">0</text></g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}</svg>`;
+  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}</svg>`;
 }
 
 async function copiarCotizacionOnline(){
