@@ -1956,7 +1956,12 @@ function agruparVelas(velas, periodo){
 function crearSvgVelas(datos, periodo){
   const width = 1100, left = 20, right = 86, plotWidth = width-left-right;
   const priceTop = 18, priceHeight = 330, volumeTop = 390, volumeHeight = 105, labelsY = 522;
-  const minimoDatos = Math.min(...datos.map(v=>v.minimo)), maximoDatos = Math.max(...datos.map(v=>v.maximo));
+  // Las operaciones forman parte de la escala de precios. Si una compra o
+  // venta queda fuera del rango OHLC de su vela, ampliar el eje mantiene el
+  // vértice del triángulo en su precio real en vez de sacarlo del gráfico.
+  const preciosOperaciones = obtenerOperacionesVisibles(datos, periodo).map(({movimiento})=>Number(movimiento.precio));
+  const preciosVisibles = [...datos.flatMap(v=>[v.minimo,v.maximo]), ...preciosOperaciones];
+  const minimoDatos = Math.min(...preciosVisibles), maximoDatos = Math.max(...preciosVisibles);
   const margen = (maximoDatos-minimoDatos || Math.abs(maximoDatos)*.01 || 1)*.06;
   const minimo = minimoDatos-margen, maximo = maximoDatos+margen, rango = maximo-minimo;
   const maxVolumen = Math.max(...datos.map(v=>v.volumen), 1), paso = plotWidth/datos.length;
@@ -1992,14 +1997,25 @@ function fechaAgrupada(fechaTexto, periodo){
   return periodo==="mes" ? fechaTexto.slice(0,7) : fecha.toISOString().slice(0,10);
 }
 
-function crearOperacionesSvg(datos, periodo, escala){
+function obtenerOperacionesVisibles(datos, periodo){
   const tickerVela=claveValorVelas().split("|")[0], fechas=datos.map(v=>v.fecha);
-  const marcadores=(db.movimientos||[]).filter(m=>tickerVelaCoincideConMovimiento(tickerVela,m)&&["COMPRA","VENTA"].includes(m.tipo)).map((m,orden)=>{
-    const indice=fechas.indexOf(fechaAgrupada(m.fecha,periodo)); if(indice<0||!Number.isFinite(Number(m.precio))) return "";
+  return (db.movimientos||[]).filter(m=>
+    tickerVelaCoincideConMovimiento(tickerVela,m)&&
+    ["COMPRA","VENTA"].includes(m.tipo)&&
+    Number.isFinite(Number(m.precio))
+  ).map((movimiento,orden)=>({
+    movimiento,
+    orden,
+    indice:fechas.indexOf(fechaAgrupada(movimiento.fecha,periodo))
+  })).filter(({indice})=>indice>=0);
+}
+
+function crearOperacionesSvg(datos, periodo, escala){
+  const marcadores=obtenerOperacionesVisibles(datos,periodo).map(({movimiento:m,orden,indice})=>{
     const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(Number(m.precio)), compra=m.tipo==="COMPRA";
     const texto=`${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}`;
     return {m,orden,x,py,compra,texto};
-  }).filter(Boolean).sort((a,b)=>a.x-b.x||a.py-b.py||a.orden-b.orden);
+  }).sort((a,b)=>a.x-b.x||a.py-b.py||a.orden-b.orden);
 
   // Distribuye las etiquetas cercanas en calles verticales para que dos
   // operaciones del mismo periodo (o de periodos contiguos) sigan legibles.
