@@ -55,6 +55,14 @@ http://localhost:8080
 La aplicación guarda los datos en localStorage del navegador.
 Usa Exportar JSON para hacer copias de seguridad.
 
+## Herramientas de dibujo en velas
+
+La vista gráfica de Velas permite crear líneas horizontales, verticales y de tendencia,
+zonas y etiquetas. La fase 2 incorpora medición de precio y periodos, canales paralelos,
+retrocesos de Fibonacci, flechas y un imán opcional que ajusta los puntos a apertura,
+máximo, mínimo o cierre. Cada dibujo también se puede personalizar, duplicar y bloquear.
+Los cambios admiten deshacer y rehacer y se guardan en la copia de seguridad.
+
 
 ## Adaptación móvil / PC añadida
 
