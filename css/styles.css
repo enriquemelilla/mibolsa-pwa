@@ -1229,4 +1229,47 @@ button,
 }
 
 .dibujo-tool.has-alert{border-color:#fbbf24;color:#fbbf24;background:#422006}
-.velas-svg .drawing .position-profit{fill:#22c55e;stroke:#22c55e;fill-opacity:.2}.velas-svg .drawing .position-risk{fill:#ef4444;stroke:#ef4444;fill-opacity:.2}.velas-svg .trade-marker{pointer-events:none}.velas-svg .trade-marker.buy{color:#22c55e}.velas-svg .trade-marker.sell{color:#ef4444}.velas-svg .trade-marker path{fill:currentColor;stroke:#0f172a;stroke-width:2}.velas-svg .trade-marker text{fill:currentColor;font-size:11px;font-weight:800;paint-order:stroke;stroke:#0f172a;stroke-width:3px}
+.velas-svg .drawing .position-profit{fill:#22c55e;stroke:#22c55e;fill-opacity:.2}.velas-svg .drawing .position-risk{fill:#ef4444;stroke:#ef4444;fill-opacity:.2}.velas-svg .trade-marker{pointer-events:none}.velas-svg .trade-marker.buy{color:#22c55e}.velas-svg .trade-marker.sell{color:#ef4444}.velas-svg .trade-marker path{fill:currentColor;stroke:#0f172a;stroke-width:2}.velas-svg .trade-marker text{fill:currentColor;font-size:11px;font-weight:800;paint-order:stroke;stroke:#0f172a;stroke-width:3px}.velas-svg .trade-marker .marker-label-guide{stroke:currentColor;stroke-width:1;stroke-dasharray:3 2;opacity:.65}
+
+/* Escritorio: una interfaz más compacta aprovecha mejor las pantallas grandes
+   sin modificar los tamaños táctiles ni la composición de móvil. */
+@media (min-width: 1200px){
+  body{font-size:14px}
+
+  .topbar{padding:12px 18px}
+  .topbar h1{font-size:22px}
+  .topbar p{font-size:13px}
+
+  .tabs{gap:6px;padding:8px 14px;top:62px}
+  .tab,.btn,.file-btn{min-height:36px;padding:8px 11px;font-size:13px;border-radius:8px}
+
+  main{width:100%;max-width:1560px;margin:0 auto;padding:14px 18px}
+  .card{padding:14px;border-radius:14px;margin-bottom:14px}
+  .grid{gap:10px}
+  .layout-2{grid-template-columns:minmax(300px,390px) 1fr;gap:14px}
+  .card-header{margin-bottom:10px}
+
+  h2{font-size:20px}
+  h3{font-size:16px}
+  label{margin-top:8px;font-size:13px}
+  input,select,textarea{padding:8px;font-size:14px;border-radius:8px}
+  th,td{padding:8px;font-size:13px}
+
+  .dashboard-stats-card{padding:12px}
+  .dashboard-stats-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .dashboard-stats-grid .stat{padding:10px;border-radius:11px}
+  .stat span{font-size:12px}
+  .stat strong{font-size:20px;margin-top:6px}
+
+  .actions{gap:8px;margin-top:11px}
+  .totals-bar{margin:8px 0 11px;padding:8px}
+  .totals-bar span{padding:6px 8px}
+  .item-card-header{padding:10px}
+  .item-card-body{padding:0 10px 10px 58px}
+  .icon-toggle{width:36px;min-width:36px;height:36px;min-height:36px;font-size:23px}
+
+  .intradia-graph-box{min-height:240px;padding:12px}
+  .grafico-velas{min-height:360px}
+  .velas-svg{height:450px}
+  .dibujo-tool{min-height:34px;padding:6px 8px;font-size:13px}
+}
