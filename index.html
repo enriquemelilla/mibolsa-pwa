@@ -366,7 +366,13 @@
             <article id="velaRegistro" class="vela-registro placeholder">No hay datos diarios.</article>
           </div>
           <div id="velasVistaGrafico" class="hidden">
-            <div id="graficoVelas" class="grafico-velas" role="img" aria-label="Gráfico de velas diario"></div>
+            <div class="grafico-controles" aria-label="Controles del gráfico">
+              <div><label for="velasAgrupacion">Agrupar por</label><select id="velasAgrupacion"><option value="dia">Días</option><option value="semana">Semanas</option><option value="mes">Meses</option></select></div>
+              <div class="grafico-deslizador"><label for="velasZoom">Velas visibles: <strong id="velasZoomValor">40</strong></label><input id="velasZoom" type="range" min="5" max="100" value="40"></div>
+              <div class="grafico-deslizador"><label for="velasDesplazamiento">Desplazamiento temporal</label><input id="velasDesplazamiento" type="range" min="0" max="0" value="0"></div>
+            </div>
+            <p class="hint grafico-ayuda">Reduce las velas visibles para ampliar el detalle o auméntalas para ver más histórico. La barra temporal desplaza a la vez precio y volumen.</p>
+            <div id="graficoVelas" class="grafico-velas" role="img" aria-label="Gráfico bursátil de velas y volumen"></div>
           </div>
         </div>
       </section>
