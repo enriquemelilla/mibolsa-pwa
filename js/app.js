@@ -283,11 +283,11 @@ function normalizarTicker(ticker){
   return String(ticker || "").trim().toUpperCase();
 }
 
-function normalizarTickerParaCoincidencia(ticker){
-  const normalizado = normalizarTicker(ticker);
-  // Las fuentes de velas pueden identificar el mercado delante del ticker
-  // (por ejemplo, BME:PUIG), mientras Movimientos guarda el ticker interno (PUIG).
-  return normalizado.includes(":") ? normalizado.split(":").pop().trim() : normalizado;
+function tickerVelaCoincideConMovimiento(tickerVela, movimiento){
+  const identificadoresVela = new Set(getVariantesTickerCotizacionOnline(tickerVela));
+  return [movimiento?.ticker, movimiento?.apiSymbol]
+    .flatMap(getVariantesTickerCotizacionOnline)
+    .some(ticker=>identificadoresVela.has(ticker));
 }
 
 function escaparHtml(value){
@@ -1993,8 +1993,8 @@ function fechaAgrupada(fechaTexto, periodo){
 }
 
 function crearOperacionesSvg(datos, periodo, escala){
-  const ticker=normalizarTickerParaCoincidencia(claveValorVelas().split("|")[0]), fechas=datos.map(v=>v.fecha);
-  return (db.movimientos||[]).filter(m=>normalizarTickerParaCoincidencia(m.ticker)===ticker&&["COMPRA","VENTA"].includes(m.tipo)).map(m=>{
+  const tickerVela=claveValorVelas().split("|")[0], fechas=datos.map(v=>v.fecha);
+  return (db.movimientos||[]).filter(m=>tickerVelaCoincideConMovimiento(tickerVela,m)&&["COMPRA","VENTA"].includes(m.tipo)).map(m=>{
     const indice=fechas.indexOf(fechaAgrupada(m.fecha,periodo)); if(indice<0||!Number.isFinite(Number(m.precio))) return "";
     const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(Number(m.precio)), compra=m.tipo==="COMPRA";
     return `<g class="trade-marker ${compra?"buy":"sell"}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/><text x="${x+10}" y="${py+(compra?13:-7)}">${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}</text></g>`;
