@@ -11,6 +11,7 @@ let dibujoPendiente = null;
 let dibujoSeleccionado = null;
 let historialDibujos = [];
 let rehacerDibujos = [];
+let imanDibujo = localStorage.getItem("velasImanDibujo") !== "false";
 
 const el = (id) => document.getElementById(id);
 
@@ -188,6 +189,7 @@ function init(){
   bind("btnDuplicarDibujo", "click", duplicarDibujoSeleccionado);
   bind("btnBloquearDibujo", "click", alternarBloqueoDibujo);
   bind("btnLimpiarDibujos", "click", limpiarDibujosContexto);
+  bind("btnImanDibujo", "click", alternarImanDibujo);
   bind("dibujoColor", "input", actualizarEstiloDibujo);
   bind("dibujoGrosor", "change", actualizarEstiloDibujo);
   bind("btnDeshacerDibujo", "click", deshacerDibujo);
@@ -1652,6 +1654,12 @@ function seleccionarHerramientaDibujo(tool){
   renderVelas();
 }
 
+function alternarImanDibujo(){
+  imanDibujo = !imanDibujo; localStorage.setItem("velasImanDibujo", String(imanDibujo));
+  const boton = el("btnImanDibujo"); boton.classList.toggle("active", imanDibujo); boton.setAttribute("aria-pressed", String(imanDibujo));
+  setStatus(imanDibujo ? "Imán activado: los puntos se ajustan a valores OHLC." : "Imán desactivado.");
+}
+
 function guardarEstadoDibujos(){
   historialDibujos.push(structuredClone(db.dibujosVelas || []));
   if(historialDibujos.length > 30) historialDibujos.shift();
@@ -1675,6 +1683,7 @@ function actualizarBotonesDibujo(){
   }
   if(el("btnDeshacerDibujo")) el("btnDeshacerDibujo").disabled = !historialDibujos.length;
   if(el("btnRehacerDibujo")) el("btnRehacerDibujo").disabled = !rehacerDibujos.length;
+  if(el("btnImanDibujo")){ el("btnImanDibujo").classList.toggle("active", imanDibujo); el("btnImanDibujo").setAttribute("aria-pressed", String(imanDibujo)); }
 }
 
 function actualizarEstiloDibujo(){
@@ -1698,7 +1707,7 @@ function duplicarDibujoSeleccionado(){
   if(!dibujo) return;
   guardarEstadoDibujos();
   const copia = structuredClone(dibujo); copia.id = uid(); copia.bloqueado = false;
-  ["p1","p2"].forEach(k=>{ if(copia[k]) copia[k].precio += Math.max(Math.abs(copia[k].precio) * .01, .01); });
+  ["p1","p2","p3"].forEach(k=>{ if(copia[k]) copia[k].precio += Math.max(Math.abs(copia[k].precio) * .01, .01); });
   if(Number.isFinite(copia.precio)) copia.precio += Math.max(Math.abs(copia.precio) * .01, .01);
   db.dibujosVelas.push(copia); dibujoSeleccionado = copia.id;
   persistirDibujos("Dibujo duplicado."); renderVelas();
@@ -1738,7 +1747,12 @@ function puntoGrafico(svg, event, datos){
   const left=Number(svg.dataset.plotLeft), right=Number(svg.dataset.plotRight), top=Number(svg.dataset.priceTop), bottom=Number(svg.dataset.priceBottom);
   const indice = Math.max(0, Math.min(datos.length-1, Math.floor((local.x-left)/(right-left)*datos.length)));
   const max=Number(svg.dataset.priceMax), min=Number(svg.dataset.priceMin);
-  return { fecha:datos[indice].fecha, precio:Math.max(min,Math.min(max,max-(local.y-top)/(bottom-top)*(max-min))) };
+  let precio=Math.max(min,Math.min(max,max-(local.y-top)/(bottom-top)*(max-min)));
+  if(imanDibujo){
+    const vela=datos[indice], candidatos=[vela.apertura,vela.maximo,vela.minimo,vela.cierre].map(Number).filter(Number.isFinite);
+    precio=candidatos.reduce((mejor,valor)=>Math.abs(valor-precio)<Math.abs(mejor-precio)?valor:mejor,candidatos[0]??precio);
+  }
+  return { fecha:datos[indice].fecha, precio };
 }
 
 function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles, datos, periodo){
@@ -1762,7 +1776,7 @@ function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibl
         guardarEstadoDibujos();
         const fin=puntoGrafico(svg,event,datos), d=(db.dibujosVelas||[]).find(item=>item.id===origen.drawingId);
         const fechas=datos.map(v=>v.fecha), deltaIndice=fechas.indexOf(fin.fecha)-fechas.indexOf(origen.punto.fecha), deltaPrecio=fin.precio-origen.punto.precio;
-        if(d){ ["p1","p2"].forEach(k=>{ if(d[k]){ const old=Math.max(0,Math.min(fechas.length-1,fechas.indexOf(origen.original[k].fecha)+deltaIndice)); d[k].fecha=fechas[old]; d[k].precio=origen.original[k].precio+deltaPrecio; } }); if(Number.isFinite(d.precio)) d.precio=origen.original.precio+deltaPrecio; }
+        if(d){ ["p1","p2","p3"].forEach(k=>{ if(d[k]){ const old=Math.max(0,Math.min(fechas.length-1,fechas.indexOf(origen.original[k].fecha)+deltaIndice)); d[k].fecha=fechas[old]; d[k].precio=origen.original[k].precio+deltaPrecio; } }); if(Number.isFinite(d.precio)) d.precio=origen.original.precio+deltaPrecio; }
         persistirDibujos("Dibujo movido."); renderVelas();
       }else renderVelas();
       return;
@@ -1783,15 +1797,17 @@ function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibl
 }
 
 function gestionarPuntoDibujo(punto, periodo){
-  const tipo=herramientaDibujo, necesitaDos=tipo==="tendencia"||tipo==="zona";
-  if(necesitaDos && !dibujoPendiente){ dibujoPendiente=punto; setStatus("Marca el segundo punto del dibujo."); return; }
+  const tipo=herramientaDibujo, puntosNecesarios=tipo==="canal"?3:["tendencia","zona","medicion","fibonacci","flecha"].includes(tipo)?2:1;
+  const puntos=dibujoPendiente?.tipo===tipo ? dibujoPendiente.puntos : [];
+  if(puntos.length+1<puntosNecesarios){ dibujoPendiente={tipo,puntos:[...puntos,punto]}; setStatus(`Marca el punto ${puntos.length+2} de ${puntosNecesarios}.`); return; }
+  const puntosFinales=[...puntos,punto];
   let texto=""; if(tipo==="texto"){ texto=prompt("Texto de la etiqueta:", "Nota")?.trim(); if(!texto) return; }
   guardarEstadoDibujos();
   const dibujo={id:uid(),tipo,valor:claveValorVelas(),periodo,color:el("dibujoColor")?.value||"#fbbf24",grosor:Number(el("dibujoGrosor")?.value||2.5),bloqueado:false};
   if(tipo==="horizontal") dibujo.precio=punto.precio;
   else if(tipo==="vertical") dibujo.p1=punto;
   else if(tipo==="texto") Object.assign(dibujo,{p1:punto,texto});
-  else Object.assign(dibujo,{p1:dibujoPendiente,p2:punto});
+  else { dibujo.p1=puntosFinales[0]; dibujo.p2=puntosFinales[1]; if(puntosFinales[2]) dibujo.p3=puntosFinales[2]; }
   db.dibujosVelas=[...(db.dibujosVelas||[]),dibujo]; dibujoPendiente=null; dibujoSeleccionado=dibujo.id;
   persistirDibujos("Dibujo guardado automáticamente."); seleccionarHerramientaDibujo("cursor");
 }
@@ -1877,7 +1893,7 @@ function crearSvgVelas(datos, periodo){
     elementos += `<g class="${clase}"><title>${escaparHtml(v.fecha)} · Apertura ${num(v.apertura,4)} · Máximo ${num(v.maximo,4)} · Mínimo ${num(v.minimo,4)} · Cierre ${num(v.cierre,4)} · Volumen ${num(v.volumen,0)}</title><line class="wick" x1="${x}" y1="${yPrecio(v.maximo)}" x2="${x}" y2="${yPrecio(v.minimo)}"/><rect class="candle" x="${x-ancho/2}" y="${cuerpoTop}" width="${ancho}" height="${Math.max(2,cuerpoBottom-cuerpoTop)}"/><rect class="volume" x="${x-ancho/2}" y="${volumeTop+volumeHeight-alturaVolumen}" width="${ancho}" height="${alturaVolumen}"/><text class="date" transform="translate(${x+3} ${labelsY}) rotate(-72)">${escaparHtml(etiqueta)}</text></g>`;
   });
   const dibujos = crearDibujosSvg(datos, periodo, {left,right:left+plotWidth,top:priceTop,bottom:priceTop+priceHeight,minimo,maximo,yPrecio,paso,decimales});
-  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="drawing-layer">${dibujos}</g></svg>`;
+  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><defs><marker id="punta-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="drawing-layer">${dibujos}</g></svg>`;
 }
 
 function crearDibujosSvg(datos, periodo, escala){
@@ -1896,6 +1912,21 @@ function crearDibujosSvg(datos, periodo, escala){
     if(d.tipo==="texto") return `<g ${attr}><circle cx="${x1}" cy="${y(d.p1.precio)}" r="4"/><text x="${x1+8}" y="${y(d.p1.precio)-8}">${escaparHtml(d.texto)}</text></g>`;
     const x2=xFecha(d.p2?.fecha); if(x2===null) return "";
     if(d.tipo==="zona") return `<g ${attr}><rect x="${Math.min(x1,x2)}" y="${Math.min(y(d.p1.precio),y(d.p2.precio))}" width="${Math.max(2,Math.abs(x2-x1))}" height="${Math.max(2,Math.abs(y(d.p2.precio)-y(d.p1.precio)))}"/></g>`;
+    if(d.tipo==="flecha") return `<g ${attr}><line x1="${x1}" y1="${y(d.p1.precio)}" x2="${x2}" y2="${y(d.p2.precio)}" marker-end="url(#punta-flecha)"/></g>`;
+    if(d.tipo==="medicion"){
+      const cambio=Number(d.p2.precio)-Number(d.p1.precio), porcentaje=d.p1.precio ? cambio/Number(d.p1.precio)*100 : 0;
+      const periodos=Math.abs(fechas.indexOf(d.p2.fecha)-fechas.indexOf(d.p1.fecha));
+      return `<g ${attr}><line x1="${x1}" y1="${y(d.p1.precio)}" x2="${x2}" y2="${y(d.p2.precio)}" stroke-dasharray="6 4"/><circle cx="${x1}" cy="${y(d.p1.precio)}" r="4"/><circle cx="${x2}" cy="${y(d.p2.precio)}" r="4"/><text x="${(x1+x2)/2}" y="${Math.min(y(d.p1.precio),y(d.p2.precio))-9}" text-anchor="middle">${cambio>=0?"+":""}${num(cambio,escala.decimales)} · ${porcentaje>=0?"+":""}${num(porcentaje,2)}% · ${periodos} periodos</text></g>`;
+    }
+    if(d.tipo==="fibonacci"){
+      const niveles=[0,.236,.382,.5,.618,.786,1];
+      return `<g ${attr}>${niveles.map(n=>{const precio=Number(d.p1.precio)+(Number(d.p2.precio)-Number(d.p1.precio))*n, py=y(precio);return `<line x1="${Math.min(x1,x2)}" y1="${py}" x2="${Math.max(x1,x2)}" y2="${py}"/><text x="${Math.max(x1,x2)+5}" y="${py-3}">${num(n*100,1)}% · ${num(precio,escala.decimales)}</text>`;}).join("")}</g>`;
+    }
+    if(d.tipo==="canal"){
+      const x3=xFecha(d.p3?.fecha); if(x3===null) return "";
+      const y1=y(d.p1.precio), y2=y(d.p2.precio), y3=y(d.p3.precio), baseEnX3=x1===x2?y1:y1+(y2-y1)*(x3-x1)/(x2-x1), desplazamiento=y3-baseEnX3;
+      return `<g ${attr}><polygon points="${x1},${y1} ${x2},${y2} ${x2},${y2+desplazamiento} ${x1},${y1+desplazamiento}"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line x1="${x1}" y1="${y1+desplazamiento}" x2="${x2}" y2="${y2+desplazamiento}"/><line x1="${x1}" y1="${y1+desplazamiento/2}" x2="${x2}" y2="${y2+desplazamiento/2}" stroke-dasharray="6 4"/></g>`;
+    }
     return `<g ${attr}><line x1="${x1}" y1="${y(d.p1.precio)}" x2="${x2}" y2="${y(d.p2.precio)}"/></g>`;
   }).join("");
 }
