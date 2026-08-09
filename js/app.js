@@ -1956,12 +1956,10 @@ function agruparVelas(velas, periodo){
 function crearSvgVelas(datos, periodo){
   const width = 1100, left = 20, right = 86, plotWidth = width-left-right;
   const priceTop = 18, priceHeight = 330, volumeTop = 390, volumeHeight = 105, labelsY = 522;
-  // Las operaciones forman parte de la escala de precios. Si una compra o
-  // venta queda fuera del rango OHLC de su vela, ampliar el eje mantiene el
-  // vértice del triángulo en su precio real en vez de sacarlo del gráfico.
-  const preciosOperaciones = obtenerOperacionesVisibles(datos, periodo).map(({movimiento})=>Number(movimiento.precio));
-  const preciosVisibles = [...datos.flatMap(v=>[v.minimo,v.maximo]), ...preciosOperaciones];
-  const minimoDatos = Math.min(...preciosVisibles), maximoDatos = Math.max(...preciosVisibles);
+  // La escala representa exclusivamente las cotizaciones OHLC. Una operación
+  // incoherente con su vela se marca en el extremo más próximo, sin deformar
+  // el gráfico para aparentar que ese precio se negoció durante la sesión.
+  const minimoDatos = Math.min(...datos.map(v=>v.minimo)), maximoDatos = Math.max(...datos.map(v=>v.maximo));
   const margen = (maximoDatos-minimoDatos || Math.abs(maximoDatos)*.01 || 1)*.06;
   const minimo = minimoDatos-margen, maximo = maximoDatos+margen, rango = maximo-minimo;
   const maxVolumen = Math.max(...datos.map(v=>v.volumen), 1), paso = plotWidth/datos.length;
@@ -2012,9 +2010,12 @@ function obtenerOperacionesVisibles(datos, periodo){
 
 function crearOperacionesSvg(datos, periodo, escala){
   const marcadores=obtenerOperacionesVisibles(datos,periodo).map(({movimiento:m,orden,indice})=>{
-    const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(Number(m.precio)), compra=m.tipo==="COMPRA";
+    const precio=Number(m.precio), vela=datos[indice];
+    const fueraDeRango=precio<vela.minimo||precio>vela.maximo;
+    const precioMarcador=Math.max(vela.minimo,Math.min(vela.maximo,precio));
+    const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(precioMarcador), compra=m.tipo==="COMPRA";
     const texto=`${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}`;
-    return {m,orden,x,py,compra,texto};
+    return {m,orden,x,py,compra,texto,fueraDeRango,vela};
   }).sort((a,b)=>a.x-b.x||a.py-b.py||a.orden-b.orden);
 
   // Distribuye las etiquetas cercanas en calles verticales para que dos
@@ -2041,10 +2042,11 @@ function crearOperacionesSvg(datos, periodo, escala){
     ocupadas.push(cajaElegida);
   });
 
-  return marcadores.map(({m,x,py,compra,texto,textX,textY,textAnchor})=>{
+  return marcadores.map(({m,x,py,compra,texto,textX,textY,textAnchor,fueraDeRango,vela})=>{
     const desplazada=Math.abs(textY-(py+(compra?13:-7)))>1;
     const guia=desplazada?`<line class="marker-label-guide" x1="${x+(textX<x?-7:7)}" y1="${py}" x2="${textX+(textAnchor==="end"?-3:3)}" y2="${textY-4}"/>`:"";
-    return `<g class="trade-marker ${compra?"buy":"sell"}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/>${guia}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}">${texto}</text></g>`;
+    const aviso=fueraDeRango?` · AVISO: precio fuera del rango de la vela (${num(vela.minimo,escala.decimales)}–${num(vela.maximo,escala.decimales)}); marcador ajustado al extremo`:"";
+    return `<g class="trade-marker ${compra?"buy":"sell"}${fueraDeRango?" out-of-range":""}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}${aviso}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/>${guia}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}">${texto}${fueraDeRango?" ⚠":""}</text></g>`;
   }).join("");
 }
 
