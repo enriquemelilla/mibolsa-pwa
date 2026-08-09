@@ -6,6 +6,11 @@ let estadoActualizacionCotizaciones = { estado: "success", errores: [] };
 let velasViewMode = localStorage.getItem("velasViewMode") || "registros";
 let velaRegistroActual = 0;
 let velasDesplazamientoActual = 0;
+let herramientaDibujo = "cursor";
+let dibujoPendiente = null;
+let dibujoSeleccionado = null;
+let historialDibujos = [];
+let rehacerDibujos = [];
 
 const el = (id) => document.getElementById(id);
 
@@ -178,6 +183,10 @@ function init(){
   bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
   bind("velasAgrupacion", "change", ()=>{ velasDesplazamientoActual = 0; renderVelas(); });
   bind("velasZoom", "input", ()=>{ el("velasZoomValor").textContent = el("velasZoom").value; renderVelas(); });
+  document.querySelectorAll("[data-dibujo-tool]").forEach(button=>button.addEventListener("click", ()=>seleccionarHerramientaDibujo(button.dataset.dibujoTool)));
+  bind("btnEliminarDibujo", "click", eliminarDibujoSeleccionado);
+  bind("btnDeshacerDibujo", "click", deshacerDibujo);
+  bind("btnRehacerDibujo", "click", rehacerDibujo);
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -205,7 +214,8 @@ function init(){
     }
   });
   document.addEventListener("keydown", (event)=>{
-    if(event.key === "Escape") cerrarErroresCotizaciones();
+    if(event.key === "Escape"){ cerrarErroresCotizaciones(); dibujoPendiente = null; dibujoSeleccionado = null; renderVelas(); }
+    if((event.key === "Delete" || event.key === "Backspace") && dibujoSeleccionado && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) eliminarDibujoSeleccionado();
   });
 
   cargarAjustesForm();
@@ -1619,21 +1629,95 @@ function renderGraficoVelas(registros){
   velasDesplazamientoActual = Math.min(velasDesplazamientoActual, maximoDesplazamiento);
   const inicio = velasDesplazamientoActual, datos = validos.slice(inicio, inicio + visibles);
   grafico.innerHTML = crearSvgVelas(datos, periodo);
-  configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles);
+  configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles, datos, periodo);
+  actualizarBotonesDibujo();
 }
 
-function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles){
+function claveValorVelas(){ return el("velasValor")?.value || ""; }
+
+function dibujosContexto(periodo){
+  return (db.dibujosVelas || []).filter(d=>d.valor === claveValorVelas() && d.periodo === periodo);
+}
+
+function seleccionarHerramientaDibujo(tool){
+  herramientaDibujo = tool;
+  dibujoPendiente = null;
+  dibujoSeleccionado = null;
+  document.querySelectorAll("[data-dibujo-tool]").forEach(b=>b.classList.toggle("active", b.dataset.dibujoTool === tool));
+  renderVelas();
+}
+
+function guardarEstadoDibujos(){
+  historialDibujos.push(structuredClone(db.dibujosVelas || []));
+  if(historialDibujos.length > 30) historialDibujos.shift();
+  rehacerDibujos = [];
+}
+
+function persistirDibujos(mensaje){ saveDB(db); actualizarBotonesDibujo(); setStatus(mensaje); }
+
+function actualizarBotonesDibujo(){
+  if(el("btnEliminarDibujo")) el("btnEliminarDibujo").disabled = !dibujoSeleccionado;
+  if(el("btnDeshacerDibujo")) el("btnDeshacerDibujo").disabled = !historialDibujos.length;
+  if(el("btnRehacerDibujo")) el("btnRehacerDibujo").disabled = !rehacerDibujos.length;
+}
+
+function eliminarDibujoSeleccionado(){
+  if(!dibujoSeleccionado) return;
+  guardarEstadoDibujos();
+  db.dibujosVelas = (db.dibujosVelas || []).filter(d=>d.id !== dibujoSeleccionado);
+  dibujoSeleccionado = null;
+  persistirDibujos("Dibujo eliminado."); renderVelas();
+}
+
+function deshacerDibujo(){
+  if(!historialDibujos.length) return;
+  rehacerDibujos.push(structuredClone(db.dibujosVelas || []));
+  db.dibujosVelas = historialDibujos.pop(); dibujoSeleccionado = null; saveDB(db); renderVelas(); setStatus("Cambio de dibujo deshecho.");
+}
+
+function rehacerDibujo(){
+  if(!rehacerDibujos.length) return;
+  historialDibujos.push(structuredClone(db.dibujosVelas || []));
+  db.dibujosVelas = rehacerDibujos.pop(); dibujoSeleccionado = null; saveDB(db); renderVelas(); setStatus("Cambio de dibujo rehecho.");
+}
+
+function puntoGrafico(svg, event, datos){
+  const p = svg.createSVGPoint(); p.x = event.clientX; p.y = event.clientY;
+  const local = p.matrixTransform(svg.getScreenCTM().inverse());
+  const left=Number(svg.dataset.plotLeft), right=Number(svg.dataset.plotRight), top=Number(svg.dataset.priceTop), bottom=Number(svg.dataset.priceBottom);
+  const indice = Math.max(0, Math.min(datos.length-1, Math.floor((local.x-left)/(right-left)*datos.length)));
+  const max=Number(svg.dataset.priceMax), min=Number(svg.dataset.priceMin);
+  return { fecha:datos[indice].fecha, precio:Math.max(min,Math.min(max,max-(local.y-top)/(bottom-top)*(max-min))) };
+}
+
+function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles, datos, periodo){
   const svg = grafico.querySelector("svg");
   if(!svg) return;
   let inicio = null;
   svg.addEventListener("pointerdown", event=>{
-    inicio = { x:event.clientX, y:event.clientY, id:event.pointerId };
+    const drawingId = event.target.closest?.("[data-drawing-id]")?.dataset.drawingId;
+    inicio = { x:event.clientX, y:event.clientY, id:event.pointerId, drawingId, punto:puntoGrafico(svg,event,datos), original:drawingId ? structuredClone((db.dibujosVelas||[]).find(d=>d.id===drawingId)) : null };
+    if(drawingId){ dibujoSeleccionado=drawingId; actualizarBotonesDibujo(); }
     svg.setPointerCapture?.(event.pointerId);
   });
   svg.addEventListener("pointerup", event=>{
     if(!inicio || inicio.id !== event.pointerId) return;
     const dx = event.clientX - inicio.x, dy = event.clientY - inicio.y;
+    const origen = inicio;
     inicio = null;
+    if(origen.drawingId && herramientaDibujo === "cursor"){
+      if(Math.abs(dx)>3 || Math.abs(dy)>3){
+        guardarEstadoDibujos();
+        const fin=puntoGrafico(svg,event,datos), d=(db.dibujosVelas||[]).find(item=>item.id===origen.drawingId);
+        const fechas=datos.map(v=>v.fecha), deltaIndice=fechas.indexOf(fin.fecha)-fechas.indexOf(origen.punto.fecha), deltaPrecio=fin.precio-origen.punto.precio;
+        if(d){ ["p1","p2"].forEach(k=>{ if(d[k]){ const old=Math.max(0,Math.min(fechas.length-1,fechas.indexOf(origen.original[k].fecha)+deltaIndice)); d[k].fecha=fechas[old]; d[k].precio=origen.original[k].precio+deltaPrecio; } }); if(Number.isFinite(d.precio)) d.precio=origen.original.precio+deltaPrecio; }
+        persistirDibujos("Dibujo movido."); renderVelas();
+      }else renderVelas();
+      return;
+    }
+    if(herramientaDibujo !== "cursor"){
+      gestionarPuntoDibujo(puntoGrafico(svg,event,datos), periodo); return;
+    }
     if(Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy)){
       const ancho = svg.getBoundingClientRect().width || 1;
       const avance = Math.max(1, Math.round(-dx / ancho * visibles));
@@ -1641,9 +1725,23 @@ function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibl
       renderVelas();
       return;
     }
-    if(Math.abs(dx) <= 12 && Math.abs(dy) <= 12) marcarValorGrafico(svg, event);
+    if(Math.abs(dx) <= 12 && Math.abs(dy) <= 12){ dibujoSeleccionado = origen.drawingId || null; renderVelas(); }
   });
   svg.addEventListener("pointercancel", ()=>{ inicio = null; });
+}
+
+function gestionarPuntoDibujo(punto, periodo){
+  const tipo=herramientaDibujo, necesitaDos=tipo==="tendencia"||tipo==="zona";
+  if(necesitaDos && !dibujoPendiente){ dibujoPendiente=punto; setStatus("Marca el segundo punto del dibujo."); return; }
+  let texto=""; if(tipo==="texto"){ texto=prompt("Texto de la etiqueta:", "Nota")?.trim(); if(!texto) return; }
+  guardarEstadoDibujos();
+  const dibujo={id:uid(),tipo,valor:claveValorVelas(),periodo,color:"#fbbf24"};
+  if(tipo==="horizontal") dibujo.precio=punto.precio;
+  else if(tipo==="vertical") dibujo.p1=punto;
+  else if(tipo==="texto") Object.assign(dibujo,{p1:punto,texto});
+  else Object.assign(dibujo,{p1:dibujoPendiente,p2:punto});
+  db.dibujosVelas=[...(db.dibujosVelas||[]),dibujo]; dibujoPendiente=null; dibujoSeleccionado=dibujo.id;
+  persistirDibujos("Dibujo guardado automáticamente."); seleccionarHerramientaDibujo("cursor");
 }
 
 function marcarValorGrafico(svg, event){
@@ -1726,7 +1824,27 @@ function crearSvgVelas(datos, periodo){
     const etiqueta=periodo === "mes" ? v.fecha : v.fecha.slice(5);
     elementos += `<g class="${clase}"><title>${escaparHtml(v.fecha)} · Apertura ${num(v.apertura,4)} · Máximo ${num(v.maximo,4)} · Mínimo ${num(v.minimo,4)} · Cierre ${num(v.cierre,4)} · Volumen ${num(v.volumen,0)}</title><line class="wick" x1="${x}" y1="${yPrecio(v.maximo)}" x2="${x}" y2="${yPrecio(v.minimo)}"/><rect class="candle" x="${x-ancho/2}" y="${cuerpoTop}" width="${ancho}" height="${Math.max(2,cuerpoBottom-cuerpoTop)}"/><rect class="volume" x="${x-ancho/2}" y="${volumeTop+volumeHeight-alturaVolumen}" width="${ancho}" height="${alturaVolumen}"/><text class="date" transform="translate(${x+3} ${labelsY}) rotate(-72)">${escaparHtml(etiqueta)}</text></g>`;
   });
-  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}</svg>`;
+  const dibujos = crearDibujosSvg(datos, periodo, {left,right:left+plotWidth,top:priceTop,bottom:priceTop+priceHeight,minimo,maximo,yPrecio,paso,decimales});
+  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="drawing-layer">${dibujos}</g></svg>`;
+}
+
+function crearDibujosSvg(datos, periodo, escala){
+  const fechas=datos.map(v=>v.fecha), xFecha=fecha=>{ const i=fechas.indexOf(fecha); return i<0 ? null : escala.left+escala.paso*(i+.5); };
+  const y=precio=>escala.yPrecio(Number(precio));
+  return dibujosContexto(periodo).map(d=>{
+    const clase=d.id===dibujoSeleccionado ? "drawing selected" : "drawing";
+    const attr=`class="${clase}" data-drawing-id="${escaparHtml(d.id)}" style="--drawing-color:${escaparHtml(d.color||"#fbbf24")}"`;
+    if(d.tipo==="horizontal"){
+      if(d.precio<escala.minimo||d.precio>escala.maximo) return "";
+      return `<g ${attr}><line x1="${escala.left}" y1="${y(d.precio)}" x2="${escala.right}" y2="${y(d.precio)}"/><text x="${escala.right-6}" y="${y(d.precio)-7}" text-anchor="end">${num(d.precio,escala.decimales)}</text></g>`;
+    }
+    const x1=xFecha(d.p1?.fecha); if(x1===null) return "";
+    if(d.tipo==="vertical") return `<g ${attr}><line x1="${x1}" y1="${escala.top}" x2="${x1}" y2="${escala.bottom}"/><text x="${x1+6}" y="${escala.top+16}">${escaparHtml(d.p1.fecha)}</text></g>`;
+    if(d.tipo==="texto") return `<g ${attr}><circle cx="${x1}" cy="${y(d.p1.precio)}" r="4"/><text x="${x1+8}" y="${y(d.p1.precio)-8}">${escaparHtml(d.texto)}</text></g>`;
+    const x2=xFecha(d.p2?.fecha); if(x2===null) return "";
+    if(d.tipo==="zona") return `<g ${attr}><rect x="${Math.min(x1,x2)}" y="${Math.min(y(d.p1.precio),y(d.p2.precio))}" width="${Math.max(2,Math.abs(x2-x1))}" height="${Math.max(2,Math.abs(y(d.p2.precio)-y(d.p1.precio)))}"/></g>`;
+    return `<g ${attr}><line x1="${x1}" y1="${y(d.p1.precio)}" x2="${x2}" y2="${y(d.p2.precio)}"/></g>`;
+  }).join("");
 }
 
 async function copiarCotizacionOnline(){
@@ -2902,7 +3020,7 @@ function guardarAjustes(e){
 function exportarDatos(){
   const filename = "mibolsa_backup_" + today() + ".json";
   downloadFile(filename, JSON.stringify(db, null, 2));
-  setStatus(`Copia de seguridad exportada con ${(db.velas || []).length} registros de velas.`);
+  setStatus(`Copia exportada con ${(db.velas || []).length} registros de velas y ${(db.dibujosVelas || []).length} dibujos.`);
 }
 
 function importarDatos(e){
@@ -2923,12 +3041,13 @@ function importarDatos(e){
           datos: Array.isArray(imported.cotizacionOnline?.datos) ? imported.cotizacionOnline.datos : []
         },
         velas: Array.isArray(imported.velas) ? imported.velas : [],
+        dibujosVelas: Array.isArray(imported.dibujosVelas) ? imported.dibujosVelas : [],
         ajustes: {...defaultData.ajustes, ...(imported.ajustes || {})},
         recomendacionesIA: imported.recomendacionesIA || null
       };
       saveDB(db);
       renderAll();
-      setStatus(`Datos importados. Recuperados ${db.velas.length} registros de velas.`);
+      setStatus(`Datos importados. Recuperados ${db.velas.length} registros de velas y ${db.dibujosVelas.length} dibujos.`);
     }catch(err){
       alert("Archivo no válido.");
     }finally{
