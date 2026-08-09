@@ -67,6 +67,11 @@ La fase 3 añade herramientas de posición larga y corta con relación riesgo/be
 alertas de precio vinculadas a cualquier dibujo y marcadores automáticos de las compras
 y ventas registradas sobre sus velas correspondientes.
 
+Para asociar esos marcadores, Velas compara el ticker descargado con el ticker interno y
+con el símbolo API del movimiento, ignorando prefijos y sufijos de mercado. Así, por
+ejemplo, `BME:MAP` y `MAP.MC` identifican el mismo valor aunque el ticker interno sea
+`MAPFRE`.
+
 
 ## Adaptación móvil / PC añadida
 
