@@ -400,6 +400,42 @@
               <button class="dibujo-tool danger" id="btnEliminarDibujo" type="button" title="Eliminar dibujo seleccionado" disabled>🗑 <span>Eliminar</span></button>
               <button class="dibujo-tool danger" id="btnLimpiarDibujos" type="button" title="Eliminar todos los dibujos visibles">⌫ <span>Limpiar</span></button>
             </div>
+            <details class="dibujo-ayuda">
+              <summary>Ayuda de la barra de herramientas</summary>
+              <p class="dibujo-ayuda-intro">Pulsa una herramienta y después marca sus puntos sobre el gráfico. Esta guía está disponible tanto en la versión web como en la móvil; en móvil, donde la barra muestra principalmente iconos, puedes abrirla para consultar el significado de cada uno.</p>
+              <div class="dibujo-ayuda-grid">
+                <div><strong>↖ Cursor</strong><span>Selecciona un dibujo y permite moverlo. Pulsa fuera para quitar la selección.</span></div>
+                <div><strong>━ Horizontal</strong><span>Marca un nivel de precio con un solo punto.</span></div>
+                <div><strong>╱ Tendencia</strong><span>Une dos puntos para mostrar una dirección alcista o bajista.</span></div>
+                <div><strong>┃ Vertical</strong><span>Señala una fecha o sesión concreta con un punto.</span></div>
+                <div><strong>▭ Zona</strong><span>Crea con dos puntos un rectángulo para destacar un rango de precio y tiempo.</span></div>
+                <div><strong>T Texto</strong><span>Añade una nota en el punto elegido.</span></div>
+                <div><strong>↕ Medición</strong><span>Mide entre dos puntos la variación de precio, el porcentaje y los periodos.</span></div>
+                <div><strong>≋ Canal</strong><span>Usa tres puntos para trazar dos líneas paralelas y delimitar un canal.</span></div>
+                <div><strong>𝜑 Fibonacci</strong><span>Dibuja entre dos puntos los niveles habituales de retroceso.</span></div>
+                <div><strong>➜ Flecha</strong><span>Une dos puntos con una flecha para resaltar un movimiento.</span></div>
+                <div><strong>↗ Larga</strong><span>Marca con tres puntos la entrada, el objetivo de beneficio y el stop de una posición compradora.</span></div>
+                <div><strong>↘ Corta</strong><span>Marca con tres puntos la entrada, el objetivo de beneficio y el stop de una posición vendedora.</span></div>
+                <div><strong>🧲 Imán</strong><span>Activa o desactiva el ajuste de los puntos al valor OHLC más cercano de la vela.</span></div>
+                <div><strong>Color y grosor</strong><span>Define el aspecto de los dibujos nuevos o modifica el dibujo seleccionado.</span></div>
+                <div><strong>🔒 Bloquear</strong><span>Impide mover el dibujo seleccionado hasta que lo desbloquees.</span></div>
+                <div><strong>⧉ Duplicar</strong><span>Crea una copia del dibujo seleccionado para reutilizarla.</span></div>
+                <div><strong>🔔 Alerta</strong><span>Asocia al dibujo seleccionado un aviso cuando el precio cruce el nivel indicado.</span></div>
+                <div><strong>↶ / ↷ Deshacer y rehacer</strong><span>Retrocede o recupera los últimos cambios realizados en los dibujos.</span></div>
+                <div><strong>🗑 Eliminar</strong><span>Borra únicamente el dibujo seleccionado.</span></div>
+                <div><strong>⌫ Limpiar</strong><span>Borra todos los dibujos del valor y la agrupación visibles, después de pedir confirmación.</span></div>
+              </div>
+              <section class="operaciones-ayuda" aria-labelledby="operacionesAyudaTitulo">
+                <h3 id="operacionesAyudaTitulo">Cómo aparecen automáticamente tus compras y ventas</h3>
+                <p>No tienes que dibujarlas. Cuando guardas una <strong>COMPRA</strong> o <strong>VENTA</strong> en Movimientos, el gráfico busca las operaciones cuyo <strong>ticker interno</strong> coincide con el valor seleccionado y las coloca en su fecha y precio.</p>
+                <ul>
+                  <li>Una compra aparece en <strong class="good">verde</strong>, con un triángulo y la letra <strong>C</strong>; una venta aparece en <strong class="bad">rojo</strong>, con un triángulo y la letra <strong>V</strong>.</li>
+                  <li>La etiqueta muestra la cantidad y el precio, y al pasar el cursor sobre la marca en web puedes consultar el detalle.</li>
+                  <li>Al agrupar por semana o mes, la operación se sitúa en la vela del periodo correspondiente.</li>
+                  <li>Solo se muestran las operaciones incluidas en las fechas visibles. Si no aparece una marca, comprueba el ticker, la fecha, el precio y desplázate o amplía el número de velas visibles.</li>
+                </ul>
+              </section>
+            </details>
             <div class="grafico-controles" aria-label="Controles del gráfico">
               <div><label for="velasAgrupacion">Agrupar por</label><select id="velasAgrupacion"><option value="dia">Días</option><option value="semana">Semanas</option><option value="mes">Meses</option></select></div>
               <div class="grafico-deslizador"><label for="velasZoom">Velas visibles: <strong id="velasZoomValor">40</strong></label><input id="velasZoom" type="range" min="5" max="100" value="40"></div>
