@@ -1,4 +1,4 @@
-const CACHE_NAME = "mibolsa-v17-enlace-marketwatch";
+const CACHE_NAME = "mibolsa-v18-grafico-velas-volumen";
 const ASSETS = [
   "./",
   "./index.html",

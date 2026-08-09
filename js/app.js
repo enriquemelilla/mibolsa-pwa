@@ -175,6 +175,9 @@ function init(){
   bind("velasValor", "change", ()=>{ velaRegistroActual = 0; renderVelas(); });
   bind("btnVelaAnterior", "click", ()=>moverRegistroVela(-1));
   bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
+  bind("velasAgrupacion", "change", renderVelas);
+  bind("velasZoom", "input", ()=>{ el("velasZoomValor").textContent = el("velasZoom").value; renderVelas(); });
+  bind("velasDesplazamiento", "input", renderVelas);
 
   bind("btnGenerarJsonIA", "click", generarJsonParaIA);
   bind("btnCopiarJsonIA", "click", copiarJsonIA);
@@ -1603,19 +1606,67 @@ function renderVelas(){
 
 function renderGraficoVelas(registros){
   const grafico = el("graficoVelas");
-  const validos = registros.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse();
+  const periodo = el("velasAgrupacion")?.value || "dia";
+  const validos = agruparVelas(registros.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse(), periodo);
   if(!validos.length){ grafico.innerHTML = `<p class="grafico-vacio">No hay datos OHLC válidos para dibujar.</p>`; return; }
   if(!el("velasValor").value){ grafico.innerHTML = `<p class="grafico-vacio">Selecciona un valor para comparar sus velas por día.</p>`; return; }
-  const minimo = Math.min(...validos.map(v=>v.minimo));
-  const maximo = Math.max(...validos.map(v=>v.maximo));
-  const rango = maximo - minimo || 1;
-  const pos = value=>(maximo - value) / rango * 260 + 10;
-  grafico.innerHTML = validos.map(v=>{
-    const sube = v.cierre >= v.apertura;
-    const topMecha = pos(v.maximo), bottomMecha = pos(v.minimo);
-    const topCuerpo = pos(Math.max(v.apertura,v.cierre)), bottomCuerpo = pos(Math.min(v.apertura,v.cierre));
-    return `<div class="vela-columna ${sube ? "vela-alcista" : "vela-bajista"}" title="${escaparHtml(v.fecha)} · A ${num(v.apertura,4)} · M ${num(v.maximo,4)} · m ${num(v.minimo,4)} · C ${num(v.cierre,4)}"><span class="vela-mecha" style="top:${topMecha}px;height:${Math.max(2,bottomMecha-topMecha)}px"></span><span class="vela-cuerpo" style="top:${topCuerpo}px;height:${Math.max(3,bottomCuerpo-topCuerpo)}px"></span><span class="vela-etiqueta">${escaparHtml(v.fecha.slice(5))}</span></div>`;
-  }).join("");
+  const zoom = el("velasZoom"), desplazamiento = el("velasDesplazamiento");
+  zoom.max = String(Math.max(5, validos.length));
+  zoom.value = String(Math.min(Number(zoom.value), validos.length));
+  const visibles = Math.max(1, Number(zoom.value));
+  el("velasZoomValor").textContent = visibles;
+  desplazamiento.max = String(Math.max(0, validos.length - visibles));
+  desplazamiento.value = String(Math.min(Number(desplazamiento.value), Number(desplazamiento.max)));
+  const inicio = Number(desplazamiento.value), datos = validos.slice(inicio, inicio + visibles);
+  grafico.innerHTML = crearSvgVelas(datos, periodo);
+}
+
+function volumenVela(vela){
+  const valor = vela.volumen ?? buscarValorPorColumnas(vela.datos || {}, ["volumen", "volume"]);
+  return normalizarNumeroCsv(valor) || 0;
+}
+
+function agruparVelas(velas, periodo){
+  if(periodo === "dia") return velas.map(v=>({...v, volumen:volumenVela(v)}));
+  const grupos = new Map();
+  velas.forEach(vela=>{
+    const fecha = new Date(`${vela.fecha}T00:00:00Z`);
+    if(periodo === "semana") fecha.setUTCDate(fecha.getUTCDate() - ((fecha.getUTCDay() + 6) % 7));
+    const clave = periodo === "mes" ? vela.fecha.slice(0,7) : fecha.toISOString().slice(0,10);
+    if(!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(vela);
+  });
+  return [...grupos.entries()].map(([clave, grupo])=>({
+    fecha:clave, apertura:grupo[0].apertura, cierre:grupo.at(-1).cierre,
+    maximo:Math.max(...grupo.map(v=>v.maximo)), minimo:Math.min(...grupo.map(v=>v.minimo)),
+    volumen:grupo.reduce((total,v)=>total + volumenVela(v), 0)
+  }));
+}
+
+function crearSvgVelas(datos, periodo){
+  const width = 1100, left = 20, right = 86, plotWidth = width-left-right;
+  const priceTop = 18, priceHeight = 330, volumeTop = 390, volumeHeight = 105, labelsY = 522;
+  const minimoDatos = Math.min(...datos.map(v=>v.minimo)), maximoDatos = Math.max(...datos.map(v=>v.maximo));
+  const margen = (maximoDatos-minimoDatos || Math.abs(maximoDatos)*.01 || 1)*.06;
+  const minimo = minimoDatos-margen, maximo = maximoDatos+margen, rango = maximo-minimo;
+  const maxVolumen = Math.max(...datos.map(v=>v.volumen), 1), paso = plotWidth/datos.length;
+  const yPrecio = value=>priceTop+(maximo-value)/rango*priceHeight;
+  const decimales = rango < .1 ? 4 : rango < 10 ? 3 : 2;
+  let rejilla = "";
+  for(let i=0;i<=8;i++){
+    const y=priceTop+priceHeight*i/8, valor=maximo-rango*i/8;
+    rejilla += `<line x1="${left}" y1="${y}" x2="${left+plotWidth}" y2="${y}"/><text x="${left+plotWidth+8}" y="${y+4}">${num(valor,decimales)}</text>`;
+  }
+  let elementos = "";
+  datos.forEach((v,i)=>{
+    const x=left+paso*(i+.5), sube=v.cierre>=v.apertura, clase=sube?"up":"down";
+    const cuerpoTop=yPrecio(Math.max(v.apertura,v.cierre)), cuerpoBottom=yPrecio(Math.min(v.apertura,v.cierre));
+    const ancho=Math.max(2,Math.min(18,paso*.58));
+    const alturaVolumen=v.volumen/maxVolumen*volumeHeight;
+    const etiqueta=periodo === "mes" ? v.fecha : v.fecha.slice(5);
+    elementos += `<g class="${clase}"><title>${escaparHtml(v.fecha)} · Apertura ${num(v.apertura,4)} · Máximo ${num(v.maximo,4)} · Mínimo ${num(v.minimo,4)} · Cierre ${num(v.cierre,4)} · Volumen ${num(v.volumen,0)}</title><line class="wick" x1="${x}" y1="${yPrecio(v.maximo)}" x2="${x}" y2="${yPrecio(v.minimo)}"/><rect class="candle" x="${x-ancho/2}" y="${cuerpoTop}" width="${ancho}" height="${Math.max(2,cuerpoBottom-cuerpoTop)}"/><rect class="volume" x="${x-ancho/2}" y="${volumeTop+volumeHeight-alturaVolumen}" width="${ancho}" height="${alturaVolumen}"/><text class="date" transform="translate(${x+3} ${labelsY}) rotate(-72)">${escaparHtml(etiqueta)}</text></g>`;
+  });
+  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><g class="grid">${rejilla}<line x1="${left}" y1="${volumeTop+volumeHeight}" x2="${left+plotWidth}" y2="${volumeTop+volumeHeight}"/><text x="${left+plotWidth+8}" y="${volumeTop+5}">${num(maxVolumen,0)}</text><text x="${left+plotWidth+8}" y="${volumeTop+volumeHeight}">0</text></g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}</svg>`;
 }
 
 async function copiarCotizacionOnline(){
