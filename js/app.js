@@ -1982,7 +1982,7 @@ function crearSvgVelas(datos, periodo){
   });
   evaluarAlertasDibujos(datos, periodo);
   const dibujos = crearDibujosSvg(datos, periodo, {left,right:left+plotWidth,top:priceTop,bottom:priceTop+priceHeight,minimo,maximo,yPrecio,paso,decimales});
-  const operaciones = crearOperacionesSvg(datos, periodo, {left,right:left+plotWidth,yPrecio,paso,decimales});
+  const operaciones = crearOperacionesSvg(datos, periodo, {left,right:left+plotWidth,top:priceTop,bottom:priceTop+priceHeight,yPrecio,paso,decimales});
   return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><defs><marker id="punta-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="operations-layer">${operaciones}</g><g class="drawing-layer">${dibujos}</g></svg>`;
 }
 
@@ -1994,10 +1994,41 @@ function fechaAgrupada(fechaTexto, periodo){
 
 function crearOperacionesSvg(datos, periodo, escala){
   const tickerVela=claveValorVelas().split("|")[0], fechas=datos.map(v=>v.fecha);
-  return (db.movimientos||[]).filter(m=>tickerVelaCoincideConMovimiento(tickerVela,m)&&["COMPRA","VENTA"].includes(m.tipo)).map(m=>{
+  const marcadores=(db.movimientos||[]).filter(m=>tickerVelaCoincideConMovimiento(tickerVela,m)&&["COMPRA","VENTA"].includes(m.tipo)).map((m,orden)=>{
     const indice=fechas.indexOf(fechaAgrupada(m.fecha,periodo)); if(indice<0||!Number.isFinite(Number(m.precio))) return "";
     const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(Number(m.precio)), compra=m.tipo==="COMPRA";
-    return `<g class="trade-marker ${compra?"buy":"sell"}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/><text x="${x+10}" y="${py+(compra?13:-7)}">${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}</text></g>`;
+    const texto=`${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}`;
+    return {m,orden,x,py,compra,texto};
+  }).filter(Boolean).sort((a,b)=>a.x-b.x||a.py-b.py||a.orden-b.orden);
+
+  // Distribuye las etiquetas cercanas en calles verticales para que dos
+  // operaciones del mismo periodo (o de periodos contiguos) sigan legibles.
+  const ocupadas=[];
+  marcadores.forEach(marcador=>{
+    const ancho=Math.max(62,marcador.texto.length*7), aLaIzquierda=marcador.x+10+ancho>escala.right;
+    marcador.textX=marcador.x+(aLaIzquierda?-10:10);
+    marcador.textAnchor=aLaIzquierda?"end":"start";
+    const izquierda=aLaIzquierda?marcador.textX-ancho:marcador.textX;
+    const base=marcador.py+(marcador.compra?13:-7);
+    const offsets=[0];
+    for(let distancia=16;distancia<=escala.bottom-escala.top;distancia+=16) offsets.push(distancia,-distancia);
+    let cajaElegida;
+    for(const offset of offsets){
+      const y=Math.max(escala.top+13,Math.min(escala.bottom-4,base+offset));
+      const caja={left:izquierda-3,right:izquierda+ancho+3,top:y-13,bottom:y+3,y};
+      const solapa=ocupadas.some(otra=>caja.left<otra.right&&caja.right>otra.left&&caja.top<otra.bottom&&caja.bottom>otra.top);
+      if(!solapa){ cajaElegida=caja; break; }
+    }
+    const baseLimitada=Math.max(escala.top+13,Math.min(escala.bottom-4,base));
+    cajaElegida ||= {left:izquierda-3,right:izquierda+ancho+3,top:baseLimitada-13,bottom:baseLimitada+3,y:baseLimitada};
+    marcador.textY=cajaElegida.y;
+    ocupadas.push(cajaElegida);
+  });
+
+  return marcadores.map(({m,x,py,compra,texto,textX,textY,textAnchor})=>{
+    const desplazada=Math.abs(textY-(py+(compra?13:-7)))>1;
+    const guia=desplazada?`<line class="marker-label-guide" x1="${x+(textX<x?-7:7)}" y1="${py}" x2="${textX+(textAnchor==="end"?-3:3)}" y2="${textY-4}"/>`:"";
+    return `<g class="trade-marker ${compra?"buy":"sell"}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/>${guia}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}">${texto}</text></g>`;
   }).join("");
 }
 
