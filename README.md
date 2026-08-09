@@ -63,6 +63,10 @@ retrocesos de Fibonacci, flechas y un imán opcional que ajusta los puntos a ape
 máximo, mínimo o cierre. Cada dibujo también se puede personalizar, duplicar y bloquear.
 Los cambios admiten deshacer y rehacer y se guardan en la copia de seguridad.
 
+La fase 3 añade herramientas de posición larga y corta con relación riesgo/beneficio,
+alertas de precio vinculadas a cualquier dibujo y marcadores automáticos de las compras
+y ventas registradas sobre sus velas correspondientes.
+
 
 ## Adaptación móvil / PC añadida
 

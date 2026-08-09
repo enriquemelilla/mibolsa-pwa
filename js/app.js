@@ -187,6 +187,7 @@ function init(){
   document.querySelectorAll("[data-dibujo-tool]").forEach(button=>button.addEventListener("click", ()=>seleccionarHerramientaDibujo(button.dataset.dibujoTool)));
   bind("btnEliminarDibujo", "click", eliminarDibujoSeleccionado);
   bind("btnDuplicarDibujo", "click", duplicarDibujoSeleccionado);
+  bind("btnAlertaDibujo", "click", configurarAlertaDibujo);
   bind("btnBloquearDibujo", "click", alternarBloqueoDibujo);
   bind("btnLimpiarDibujos", "click", limpiarDibujosContexto);
   bind("btnImanDibujo", "click", alternarImanDibujo);
@@ -1670,7 +1671,11 @@ function persistirDibujos(mensaje){ saveDB(db); actualizarBotonesDibujo(); setSt
 
 function actualizarBotonesDibujo(){
   const seleccionado = (db.dibujosVelas || []).find(d=>d.id === dibujoSeleccionado);
-  ["btnEliminarDibujo","btnDuplicarDibujo","btnBloquearDibujo"].forEach(id=>{ if(el(id)) el(id).disabled = !seleccionado; });
+  ["btnEliminarDibujo","btnDuplicarDibujo","btnBloquearDibujo","btnAlertaDibujo"].forEach(id=>{ if(el(id)) el(id).disabled = !seleccionado; });
+  if(el("btnAlertaDibujo")){
+    el("btnAlertaDibujo").classList.toggle("has-alert", Boolean(seleccionado?.alerta?.activa));
+    el("btnAlertaDibujo").querySelector("span").textContent = seleccionado?.alerta?.activa ? "Alerta activa" : "Alerta";
+  }
   if(el("btnLimpiarDibujos")) el("btnLimpiarDibujos").disabled = !dibujosContexto(el("velasAgrupacion")?.value || "dia").length;
   if(el("btnBloquearDibujo")){
     el("btnBloquearDibujo").classList.toggle("is-locked", Boolean(seleccionado?.bloqueado));
@@ -1684,6 +1689,40 @@ function actualizarBotonesDibujo(){
   if(el("btnDeshacerDibujo")) el("btnDeshacerDibujo").disabled = !historialDibujos.length;
   if(el("btnRehacerDibujo")) el("btnRehacerDibujo").disabled = !rehacerDibujos.length;
   if(el("btnImanDibujo")){ el("btnImanDibujo").classList.toggle("active", imanDibujo); el("btnImanDibujo").setAttribute("aria-pressed", String(imanDibujo)); }
+}
+
+function precioReferenciaDibujo(dibujo){
+  return Number.isFinite(Number(dibujo?.precio)) ? Number(dibujo.precio) : Number(dibujo?.p1?.precio);
+}
+
+function configurarAlertaDibujo(){
+  const dibujo=(db.dibujosVelas||[]).find(d=>d.id===dibujoSeleccionado);
+  if(!dibujo) return;
+  if(dibujo.alerta?.activa && confirm("Este dibujo ya tiene una alerta activa. ¿Quieres desactivarla?")){
+    guardarEstadoDibujos(); dibujo.alerta.activa=false; persistirDibujos("Alerta desactivada."); renderVelas(); return;
+  }
+  const referencia=precioReferenciaDibujo(dibujo);
+  const valor=prompt("Precio de la alerta:", Number.isFinite(referencia) ? String(referencia) : "");
+  if(valor===null) return;
+  const precio=Number(String(valor).replace(",","."));
+  if(!Number.isFinite(precio)||precio<=0){ alert("Introduce un precio válido."); return; }
+  const porEncima=confirm("Aceptar: avisar cuando el cierre sea igual o MAYOR.\nCancelar: avisar cuando sea igual o MENOR.");
+  guardarEstadoDibujos();
+  dibujo.alerta={activa:true,precio,condicion:porEncima?"mayor":"menor",disparada:false,creadaEn:new Date().toISOString()};
+  persistirDibujos(`Alerta activa a ${num(precio,4)} (${porEncima?"≥":"≤"}).`); renderVelas();
+}
+
+function evaluarAlertasDibujos(datos, periodo){
+  const cierre=Number(datos.at(-1)?.cierre); if(!Number.isFinite(cierre)) return;
+  let cambio=false;
+  dibujosContexto(periodo).forEach(d=>{
+    const a=d.alerta; if(!a?.activa||a.disparada) return;
+    if((a.condicion==="mayor"&&cierre>=a.precio)||(a.condicion==="menor"&&cierre<=a.precio)){
+      a.disparada=true; a.disparadaEn=new Date().toISOString(); cambio=true;
+      setStatus(`🔔 Alerta alcanzada al cierre ${num(cierre,4)} (nivel ${num(a.precio,4)}).`);
+    }
+  });
+  if(cambio) saveDB(db);
 }
 
 function actualizarEstiloDibujo(){
@@ -1797,7 +1836,7 @@ function configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibl
 }
 
 function gestionarPuntoDibujo(punto, periodo){
-  const tipo=herramientaDibujo, puntosNecesarios=tipo==="canal"?3:["tendencia","zona","medicion","fibonacci","flecha"].includes(tipo)?2:1;
+  const tipo=herramientaDibujo, puntosNecesarios=["canal","posicion_larga","posicion_corta"].includes(tipo)?3:["tendencia","zona","medicion","fibonacci","flecha"].includes(tipo)?2:1;
   const puntos=dibujoPendiente?.tipo===tipo ? dibujoPendiente.puntos : [];
   if(puntos.length+1<puntosNecesarios){ dibujoPendiente={tipo,puntos:[...puntos,punto]}; setStatus(`Marca el punto ${puntos.length+2} de ${puntosNecesarios}.`); return; }
   const puntosFinales=[...puntos,punto];
@@ -1892,8 +1931,25 @@ function crearSvgVelas(datos, periodo){
     const etiqueta=periodo === "mes" ? v.fecha : v.fecha.slice(5);
     elementos += `<g class="${clase}"><title>${escaparHtml(v.fecha)} · Apertura ${num(v.apertura,4)} · Máximo ${num(v.maximo,4)} · Mínimo ${num(v.minimo,4)} · Cierre ${num(v.cierre,4)} · Volumen ${num(v.volumen,0)}</title><line class="wick" x1="${x}" y1="${yPrecio(v.maximo)}" x2="${x}" y2="${yPrecio(v.minimo)}"/><rect class="candle" x="${x-ancho/2}" y="${cuerpoTop}" width="${ancho}" height="${Math.max(2,cuerpoBottom-cuerpoTop)}"/><rect class="volume" x="${x-ancho/2}" y="${volumeTop+volumeHeight-alturaVolumen}" width="${ancho}" height="${alturaVolumen}"/><text class="date" transform="translate(${x+3} ${labelsY}) rotate(-72)">${escaparHtml(etiqueta)}</text></g>`;
   });
+  evaluarAlertasDibujos(datos, periodo);
   const dibujos = crearDibujosSvg(datos, periodo, {left,right:left+plotWidth,top:priceTop,bottom:priceTop+priceHeight,minimo,maximo,yPrecio,paso,decimales});
-  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><defs><marker id="punta-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="drawing-layer">${dibujos}</g></svg>`;
+  const operaciones = crearOperacionesSvg(datos, periodo, {left,right:left+plotWidth,yPrecio,paso,decimales});
+  return `<svg class="velas-svg" viewBox="0 0 ${width} 550" preserveAspectRatio="none" aria-labelledby="tituloGrafico" data-price-top="${priceTop}" data-price-bottom="${priceTop+priceHeight}" data-price-min="${minimo}" data-price-max="${maximo}" data-price-decimals="${decimales}" data-volume-top="${volumeTop}" data-volume-bottom="${volumeTop+volumeHeight}" data-volume-max="${maxVolumen}" data-plot-left="${left}" data-plot-right="${left+plotWidth}"><title id="tituloGrafico">Velas agrupadas por ${periodo} con volumen sincronizado</title><defs><marker id="punta-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs><g class="grid">${rejilla}</g><text class="axis-title" x="${left}" y="${volumeTop-10}">Volumen</text>${elementos}<g class="operations-layer">${operaciones}</g><g class="drawing-layer">${dibujos}</g></svg>`;
+}
+
+function fechaAgrupada(fechaTexto, periodo){
+  const fecha=new Date(`${fechaTexto}T00:00:00Z`);
+  if(periodo==="semana") fecha.setUTCDate(fecha.getUTCDate()-((fecha.getUTCDay()+6)%7));
+  return periodo==="mes" ? fechaTexto.slice(0,7) : fecha.toISOString().slice(0,10);
+}
+
+function crearOperacionesSvg(datos, periodo, escala){
+  const ticker=claveValorVelas().split("|")[0].toUpperCase(), fechas=datos.map(v=>v.fecha);
+  return (db.movimientos||[]).filter(m=>String(m.ticker).toUpperCase()===ticker&&["COMPRA","VENTA"].includes(m.tipo)).map(m=>{
+    const indice=fechas.indexOf(fechaAgrupada(m.fecha,periodo)); if(indice<0||!Number.isFinite(Number(m.precio))) return "";
+    const x=escala.left+escala.paso*(indice+.5), py=escala.yPrecio(Number(m.precio)), compra=m.tipo==="COMPRA";
+    return `<g class="trade-marker ${compra?"buy":"sell"}"><title>${m.tipo}: ${num(m.cantidad,6)} a ${num(m.precio,escala.decimales)}</title><path d="M ${x} ${py} l -7 ${compra?10:-10} h 14 z"/><text x="${x+10}" y="${py+(compra?13:-7)}">${compra?"C":"V"} ${num(m.cantidad,2)} · ${num(m.precio,escala.decimales)}</text></g>`;
+  }).join("");
 }
 
 function crearDibujosSvg(datos, periodo, escala){
@@ -1921,6 +1977,12 @@ function crearDibujosSvg(datos, periodo, escala){
     if(d.tipo==="fibonacci"){
       const niveles=[0,.236,.382,.5,.618,.786,1];
       return `<g ${attr}>${niveles.map(n=>{const precio=Number(d.p1.precio)+(Number(d.p2.precio)-Number(d.p1.precio))*n, py=y(precio);return `<line x1="${Math.min(x1,x2)}" y1="${py}" x2="${Math.max(x1,x2)}" y2="${py}"/><text x="${Math.max(x1,x2)+5}" y="${py-3}">${num(n*100,1)}% · ${num(precio,escala.decimales)}</text>`;}).join("")}</g>`;
+    }
+    if(d.tipo==="posicion_larga"||d.tipo==="posicion_corta"){
+      const x3=xFecha(d.p3?.fecha); if(x3===null) return "";
+      const entrada=y(d.p1.precio), objetivo=y(d.p2.precio), stop=y(d.p3.precio), fin=Math.max(x1,x2,x3);
+      const riesgo=Math.abs(Number(d.p1.precio)-Number(d.p3.precio)), beneficio=Math.abs(Number(d.p2.precio)-Number(d.p1.precio));
+      return `<g ${attr}><rect class="position-profit" x="${x1}" y="${Math.min(entrada,objetivo)}" width="${Math.max(3,fin-x1)}" height="${Math.max(2,Math.abs(objetivo-entrada))}"/><rect class="position-risk" x="${x1}" y="${Math.min(entrada,stop)}" width="${Math.max(3,fin-x1)}" height="${Math.max(2,Math.abs(stop-entrada))}"/><line x1="${x1}" y1="${entrada}" x2="${fin}" y2="${entrada}"/><text x="${x1+5}" y="${entrada-6}">${d.tipo==="posicion_larga"?"LARGA":"CORTA"} · R/B 1:${num(riesgo?beneficio/riesgo:0,2)}</text></g>`;
     }
     if(d.tipo==="canal"){
       const x3=xFecha(d.p3?.fecha); if(x3===null) return "";
