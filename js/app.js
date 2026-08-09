@@ -180,10 +180,18 @@ function init(){
   bind("velasFechaDesde", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
   bind("velasFechaHasta", "change", ()=>{ el("velasUltimas52").checked = false; velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
   bind("velasValor", "change", ()=>{ velaRegistroActual = 0; velasDesplazamientoActual = 0; renderVelas(); });
+  bind("btnVelaInicio", "click", ()=>irARegistroVela(0));
   bind("btnVelaAnterior", "click", ()=>moverRegistroVela(-1));
   bind("btnVelaSiguiente", "click", ()=>moverRegistroVela(1));
+  bind("btnVelaFinal", "click", ()=>irARegistroVela(getVelasFiltradas().length - 1));
+  bind("velaDesplazamiento", "input", event=>irARegistroVela(Number(event.target.value)));
   bind("velasAgrupacion", "change", ()=>{ velasDesplazamientoActual = 0; renderVelas(); });
   bind("velasZoom", "input", ()=>{ el("velasZoomValor").textContent = el("velasZoom").value; renderVelas(); });
+  bind("btnGraficoVelasInicio", "click", ()=>irAGraficoVelas(0));
+  bind("btnGraficoVelasAnterior", "click", ()=>moverGraficoVelas(-1));
+  bind("btnGraficoVelasSiguiente", "click", ()=>moverGraficoVelas(1));
+  bind("btnGraficoVelasFinal", "click", ()=>irAGraficoVelas(Number(el("graficoVelasDesplazamiento").max)));
+  bind("graficoVelasDesplazamiento", "input", event=>irAGraficoVelas(Number(event.target.value)));
   document.querySelectorAll("[data-dibujo-tool]").forEach(button=>button.addEventListener("click", ()=>seleccionarHerramientaDibujo(button.dataset.dibujoTool)));
   bind("btnEliminarDibujo", "click", eliminarDibujoSeleccionado);
   bind("btnDuplicarDibujo", "click", duplicarDibujoSeleccionado);
@@ -1584,6 +1592,20 @@ function moverRegistroVela(delta){
   renderVelas();
 }
 
+function irARegistroVela(indice){
+  const total = getVelasFiltradas().length;
+  velaRegistroActual = Math.max(0, Math.min(total - 1, indice));
+  renderVelas();
+}
+
+function irAGraficoVelas(desplazamiento){
+  const maximo = Number(el("graficoVelasDesplazamiento")?.max || 0);
+  velasDesplazamientoActual = Math.max(0, Math.min(maximo, desplazamiento));
+  renderVelas();
+}
+
+function moverGraficoVelas(delta){ irAGraficoVelas(velasDesplazamientoActual + delta); }
+
 function renderVelas(){
   const contenedor = el("velaRegistro");
   if(!contenedor) return;
@@ -1611,8 +1633,13 @@ function renderVelas(){
   el("velasActualizadas").textContent = todas.length ? `${new Set(todas.map(v=>v.fecha)).size} días guardados` : "Sin datos diarios";
   el("velasStatus").textContent = `Mostrando ${filtradas.length} de ${todas.length} registros diarios.`;
   el("velaPosicion").textContent = filtradas.length ? `${velaRegistroActual + 1} / ${filtradas.length}` : "0 / 0";
+  el("velaDesplazamiento").max = String(Math.max(0, filtradas.length - 1));
+  el("velaDesplazamiento").value = String(velaRegistroActual);
+  el("velaDesplazamiento").disabled = !filtradas.length;
+  el("btnVelaInicio").disabled = velaRegistroActual <= 0;
   el("btnVelaAnterior").disabled = velaRegistroActual <= 0;
   el("btnVelaSiguiente").disabled = velaRegistroActual >= filtradas.length - 1;
+  el("btnVelaFinal").disabled = velaRegistroActual >= filtradas.length - 1;
 
   const actual = filtradas[velaRegistroActual];
   contenedor.innerHTML = actual ? `<h3>${escaparHtml(actual.nombre)} ${actual.ticker ? `<small class="muted">${escaparHtml(actual.ticker)}</small>` : ""}</h3>
@@ -1626,8 +1653,8 @@ function renderGraficoVelas(registros){
   const grafico = el("graficoVelas");
   const periodo = el("velasAgrupacion")?.value || "dia";
   const validos = agruparVelas(registros.filter(v=>[v.apertura,v.maximo,v.minimo,v.cierre].every(Number.isFinite)).reverse(), periodo);
-  if(!validos.length){ grafico.innerHTML = `<p class="grafico-vacio">No hay datos OHLC válidos para dibujar.</p>`; return; }
-  if(!el("velasValor").value){ grafico.innerHTML = `<p class="grafico-vacio">Selecciona un valor para comparar sus velas por día.</p>`; return; }
+  if(!validos.length){ grafico.innerHTML = `<p class="grafico-vacio">No hay datos OHLC válidos para dibujar.</p>`; actualizarNavegacionGrafico(0, 0); return; }
+  if(!el("velasValor").value){ grafico.innerHTML = `<p class="grafico-vacio">Selecciona un valor para comparar sus velas por día.</p>`; actualizarNavegacionGrafico(0, 0); return; }
   const zoom = el("velasZoom");
   zoom.max = String(Math.max(5, validos.length));
   zoom.value = String(Math.min(Number(zoom.value), validos.length));
@@ -1636,9 +1663,24 @@ function renderGraficoVelas(registros){
   const maximoDesplazamiento = Math.max(0, validos.length - visibles);
   velasDesplazamientoActual = Math.min(velasDesplazamientoActual, maximoDesplazamiento);
   const inicio = velasDesplazamientoActual, datos = validos.slice(inicio, inicio + visibles);
+  actualizarNavegacionGrafico(validos.length, datos.length);
   grafico.innerHTML = crearSvgVelas(datos, periodo);
   configurarInteraccionGraficoVelas(grafico, maximoDesplazamiento, visibles, datos, periodo);
   actualizarBotonesDibujo();
+}
+
+function actualizarNavegacionGrafico(total, visibles){
+  const maximo = Math.max(0, total - visibles);
+  velasDesplazamientoActual = Math.max(0, Math.min(velasDesplazamientoActual, maximo));
+  const barra = el("graficoVelasDesplazamiento");
+  barra.max = String(maximo);
+  barra.value = String(Math.min(velasDesplazamientoActual, maximo));
+  barra.disabled = maximo === 0;
+  el("graficoVelasPosicion").textContent = total ? `${velasDesplazamientoActual + 1}–${velasDesplazamientoActual + visibles} / ${total}` : "0 / 0";
+  el("btnGraficoVelasInicio").disabled = velasDesplazamientoActual <= 0;
+  el("btnGraficoVelasAnterior").disabled = velasDesplazamientoActual <= 0;
+  el("btnGraficoVelasSiguiente").disabled = velasDesplazamientoActual >= maximo;
+  el("btnGraficoVelasFinal").disabled = velasDesplazamientoActual >= maximo;
 }
 
 function claveValorVelas(){ return el("velasValor")?.value || ""; }
